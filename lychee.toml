@@ -1,0 +1,35 @@
+# Lychee configuration for link checking
+# See: https://lychee.cli.rs/
+
+# Files to check
+include = ["README.md", "crates/*/README.md"]
+
+# Exclude these patterns
+exclude = []
+
+# Skip these URLs
+exclude_path = ["target", ".git"]
+
+# Accept these status codes
+accept = [200, 204, 301, 302, 303, 307, 308]
+
+# Timeout for requests
+timeout = 30
+
+# Maximum number of retries
+max_retries = 3
+
+# Maximum concurrent requests
+max_concurrency = 16
+
+# Cache results
+cache = true
+
+# Don't require HTTPS
+require_https = false
+
+# Skip private IPs
+skip_missing = false
+
+# Include fragments
+include_fragments = true

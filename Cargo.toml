@@ -1,0 +1,88 @@
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+license = "MIT"
+homepage = "https://github.com/factordynamics/factors"
+repository = "https://github.com/factordynamics/factors"
+authors = ["Factor Dynamics"]
+keywords = ["factor-model", "quantitative-finance", "equity", "alpha", "risk"]
+categories = ["finance", "mathematics", "science"]
+
+[workspace]
+resolver = "2"
+members = ["crates/*", "bin"]
+default-members = ["bin"]
+
+[workspace.lints.rust]
+missing-debug-implementations = "warn"
+missing-docs = "warn"
+unreachable-pub = "warn"
+unused-must-use = "deny"
+rust-2018-idioms = "deny"
+unnameable-types = "warn"
+
+[workspace.lints.rustdoc]
+all = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+missing-const-for-fn = "warn"
+use-self = "warn"
+option-if-let-else = "warn"
+redundant-clone = "warn"
+
+[profile.dev]
+debug = "line-tables-only"
+split-debuginfo = "unpacked"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+debug = "none"
+strip = "symbols"
+panic = "unwind"
+codegen-units = 16
+
+[workspace.dependencies]
+# Internal crates
+fd-factors = { version = "0.1.0", path = "crates/fd-factors", default-features = false }
+fd-factors-bin = { version = "0.1.0", path = "bin" }
+
+# Toraniko dependencies from crates.io
+toraniko = { version = "0.1.3", default-features = false, features = ["full"] }
+toraniko-primitives = "0.1.3"
+toraniko-traits = "0.1.3"
+toraniko-math = "0.1.3"
+toraniko-styles = "0.1.3"
+toraniko-model = "0.1.3"
+toraniko-utils = "0.1.3"
+
+# DataFrames
+polars = { version = "0.46", default-features = false, features = ["lazy", "dtype-date", "dtype-datetime", "streaming", "rank", "rolling_window", "abs", "log"] }
+
+# Linear algebra
+ndarray = { version = "0.16", features = ["rayon"] }
+
+# Error handling
+thiserror = "2.0"
+
+# Utilities
+derive_more = { version = "2", features = ["display", "from", "into"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+
+# Testing
+rstest = "0.24"
+approx = "0.5"
+criterion = { version = "0.5", features = ["html_reports"] }
+rand = "0.8"
+
+# Async runtime and HTTP
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+futures = "0.3"
+
+# CLI
+clap = { version = "4", features = ["derive"] }
+indicatif = "0.17"

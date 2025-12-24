@@ -1,0 +1,29 @@
+[package]
+name = "fd-factors"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Unified factor library for alpha and risk models"
+
+[package.metadata.cargo-udeps.ignore]
+normal = ["toraniko-math", "toraniko-traits"]
+development = ["rstest", "approx"]
+
+[lints]
+workspace = true
+
+[dependencies]
+toraniko-traits.workspace = true
+toraniko-math.workspace = true
+polars.workspace = true
+thiserror.workspace = true
+chrono.workspace = true
+serde.workspace = true
+
+[dev-dependencies]
+rstest.workspace = true
+approx.workspace = true
