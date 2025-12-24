@@ -10,6 +10,7 @@ pub mod liquidity;
 pub mod momentum;
 pub mod quality;
 pub mod registry;
+pub mod sentiment;
 pub mod size;
 pub mod standardize;
 pub mod traits;

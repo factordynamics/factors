@@ -26,6 +26,8 @@ pub enum FactorCategory {
     Growth,
     /// Liquidity - trading volume factors
     Liquidity,
+    /// Sentiment - analyst and market sentiment factors
+    Sentiment,
 }
 
 impl std::fmt::Display for FactorCategory {
@@ -38,6 +40,7 @@ impl std::fmt::Display for FactorCategory {
             Self::Volatility => write!(f, "Volatility"),
             Self::Growth => write!(f, "Growth"),
             Self::Liquidity => write!(f, "Liquidity"),
+            Self::Sentiment => write!(f, "Sentiment"),
         }
     }
 }
@@ -92,6 +95,7 @@ impl FactorRegistry {
         registry.register(Arc::new(crate::quality::Roa));
         registry.register(Arc::new(crate::quality::ProfitMargin));
         registry.register(Arc::new(crate::quality::Leverage));
+        registry.register(Arc::new(crate::quality::GrossProfitability));
 
         // Size factors
         registry.register(Arc::new(crate::size::LogMarketCap));
@@ -107,6 +111,17 @@ impl FactorRegistry {
         // Liquidity factors
         registry.register(Arc::new(crate::liquidity::TurnoverRatio::default()));
         registry.register(Arc::new(crate::liquidity::AmihudIlliquidity::default()));
+        registry.register(Arc::new(crate::liquidity::DollarVolume::default()));
+        registry.register(Arc::new(crate::liquidity::BidAskSpread::default()));
+        registry.register(Arc::new(crate::liquidity::RollMeasure::default()));
+        registry.register(Arc::new(crate::liquidity::CorwinSchultz::default()));
+        registry.register(Arc::new(crate::liquidity::ShortInterestRatio::default()));
+        registry.register(Arc::new(crate::liquidity::DaysToCover::default()));
+        registry.register(Arc::new(crate::liquidity::RelativeVolume::default()));
+        registry.register(Arc::new(crate::liquidity::KyleLambda::default()));
+
+        // Sentiment factors
+        registry.register(Arc::new(crate::sentiment::AnalystRevisions));
 
         registry
     }
