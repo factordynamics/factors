@@ -46,7 +46,7 @@ codegen-units = 16
 
 [workspace.dependencies]
 # Internal crates
-factors = { version = "0.1.0", path = "crates/fd-factors", default-features = false }
+factors = { version = "0.1.0", path = "crates/factors", default-features = false }
 factors-bin = { version = "0.1.0", path = "bin" }
 
 # Toraniko dependencies from crates.io
