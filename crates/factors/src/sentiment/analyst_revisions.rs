@@ -7,10 +7,25 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+use serde::{Deserialize, Serialize};
+
+/// Configuration for the Analyst Revisions factor.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AnalystRevisionsConfig {
+    /// Number of days to look back for estimate comparison.
+    /// Default is 63 (approximately 3 months). Use 21 for 1-month, 126 for 6-month changes.
+    pub lookback_days: usize,
+}
+
+impl Default for AnalystRevisionsConfig {
+    fn default() -> Self {
+        Self { lookback_days: 63 }
+    }
+}
 
 /// Analyst Revisions factor measuring the direction of EPS estimate changes.
 ///
@@ -19,7 +34,7 @@ use polars::prelude::*;
 ///
 /// where:
 /// - `Current EPS Estimate` is the most recent consensus estimate
-/// - `Prior EPS Estimate` is the estimate from 63 trading days ago (~3 months)
+/// - `Prior EPS Estimate` is the estimate from lookback_days trading days ago
 ///
 /// Positive values indicate upward revisions, negative values indicate downgrades.
 /// This factor is useful for:
@@ -34,8 +49,7 @@ use polars::prelude::*;
 /// # Required Columns
 /// - `symbol`: Stock ticker symbol
 /// - `date`: Date of the estimate
-/// - `eps_estimate_current`: Current consensus EPS estimate
-/// - `eps_estimate_prior`: Prior consensus EPS estimate (from lookback period)
+/// - `eps_estimate`: Consensus EPS estimate
 ///
 /// Or alternatively:
 /// - `symbol`: Stock ticker symbol
@@ -43,7 +57,9 @@ use polars::prelude::*;
 /// - `revisions_up`: Number of upward revisions
 /// - `revisions_down`: Number of downward revisions
 #[derive(Debug, Clone, Default)]
-pub struct AnalystRevisions;
+pub struct AnalystRevisions {
+    config: AnalystRevisionsConfig,
+}
 
 impl Factor for AnalystRevisions {
     fn name(&self) -> &str {
@@ -63,7 +79,7 @@ impl Factor for AnalystRevisions {
     }
 
     fn lookback(&self) -> usize {
-        63 // Approximately 3 months of trading days
+        self.config.lookback_days
     }
 
     fn frequency(&self) -> DataFrequency {
@@ -90,7 +106,7 @@ impl Factor for AnalystRevisions {
                 col("eps_estimate")
                     .sort_by([col("date")], Default::default())
                     .slice(
-                        (lit(0) - lit(self.lookback() as i64 + 1)).cast(DataType::Int64),
+                        (lit(0) - lit(self.config.lookback_days as i64 + 1)).cast(DataType::Int64),
                         lit(1u32),
                     )
                     .first()
@@ -109,6 +125,18 @@ impl Factor for AnalystRevisions {
     }
 }
 
+impl ConfigurableFactor for AnalystRevisions {
+    type Config = AnalystRevisionsConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -116,7 +144,7 @@ mod tests {
 
     #[test]
     fn test_analyst_revisions_positive() {
-        let factor = AnalystRevisions;
+        let factor = AnalystRevisions::default();
 
         // Create test data with 64 days of EPS estimates
         let dates: Vec<String> = (0..64)
@@ -166,7 +194,7 @@ mod tests {
 
     #[test]
     fn test_analyst_revisions_negative() {
-        let factor = AnalystRevisions;
+        let factor = AnalystRevisions::default();
 
         // Create test data with 64 days of EPS estimates
         let dates: Vec<String> = (0..64)
@@ -215,7 +243,7 @@ mod tests {
 
     #[test]
     fn test_analyst_revisions_multiple_stocks() {
-        let factor = AnalystRevisions;
+        let factor = AnalystRevisions::default();
 
         // Create test data for two stocks
         let mut dates = Vec::new();
@@ -282,7 +310,7 @@ mod tests {
 
     #[test]
     fn test_analyst_revisions_metadata() {
-        let factor = AnalystRevisions;
+        let factor = AnalystRevisions::default();
 
         assert_eq!(factor.name(), "analyst_revisions");
         assert_eq!(factor.category(), FactorCategory::Sentiment);
@@ -296,7 +324,7 @@ mod tests {
 
     #[test]
     fn test_analyst_revisions_insufficient_history() {
-        let factor = AnalystRevisions;
+        let factor = AnalystRevisions::default();
 
         // Create test data with only 30 days (insufficient for 63-day lookback)
         let dates: Vec<String> = (0..30)

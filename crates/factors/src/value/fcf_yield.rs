@@ -6,10 +6,20 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+
+/// Configuration for free cash flow yield factor.
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+pub struct FcfYieldConfig;
+
+impl Default for FcfYieldConfig {
+    fn default() -> Self {
+        Self
+    }
+}
 
 /// Free cash flow yield value factor.
 ///
@@ -52,8 +62,18 @@ use polars::prelude::*;
 ///
 /// let result = factor.compute(&data, NaiveDate::from_ymd_opt(2024, 3, 31).unwrap())?;
 /// ```
-#[derive(Debug, Clone, Copy, Default)]
-pub struct FcfYield;
+#[derive(Debug, Clone, Copy)]
+pub struct FcfYield {
+    config: FcfYieldConfig,
+}
+
+impl Default for FcfYield {
+    fn default() -> Self {
+        Self {
+            config: FcfYieldConfig,
+        }
+    }
+}
 
 impl Factor for FcfYield {
     fn name(&self) -> &str {
@@ -95,6 +115,18 @@ impl Factor for FcfYield {
     }
 }
 
+impl ConfigurableFactor for FcfYield {
+    type Config = FcfYieldConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -110,7 +142,7 @@ mod tests {
         .unwrap()
         .lazy();
 
-        let factor = FcfYield;
+        let factor = FcfYield::default();
         let date = NaiveDate::from_ymd_opt(2024, 3, 31).unwrap();
         let result = factor.compute_raw(&data, date).unwrap();
 
@@ -125,7 +157,7 @@ mod tests {
 
     #[test]
     fn test_fcf_yield_metadata() {
-        let factor = FcfYield;
+        let factor = FcfYield::default();
         assert_eq!(factor.name(), "fcf_yield");
         assert_eq!(factor.category(), FactorCategory::Value);
         assert_eq!(factor.lookback(), 1);
@@ -143,7 +175,7 @@ mod tests {
         .unwrap()
         .lazy();
 
-        let factor = FcfYield;
+        let factor = FcfYield::default();
         let date = NaiveDate::from_ymd_opt(2024, 3, 31).unwrap();
         let result = factor.compute_raw(&data, date).unwrap();
 
@@ -163,7 +195,7 @@ mod tests {
         .unwrap()
         .lazy();
 
-        let factor = FcfYield;
+        let factor = FcfYield::default();
         let date = NaiveDate::from_ymd_opt(2024, 3, 31).unwrap();
         let result = factor.compute_raw(&data, date).unwrap();
 
@@ -186,7 +218,7 @@ mod tests {
         .unwrap()
         .lazy();
 
-        let factor = FcfYield;
+        let factor = FcfYield::default();
         let date = NaiveDate::from_ymd_opt(2024, 3, 31).unwrap();
         let result = factor.compute_raw(&data, date).unwrap();
 

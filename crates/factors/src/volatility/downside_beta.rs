@@ -11,10 +11,28 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+
+/// Configuration for the DownsideBeta factor.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct DownsideBetaConfig {
+    /// Number of trading days for the rolling calculation.
+    pub lookback: usize,
+    /// Minimum number of periods required for a valid calculation.
+    pub min_periods: usize,
+}
+
+impl Default for DownsideBetaConfig {
+    fn default() -> Self {
+        Self {
+            lookback: 252,
+            min_periods: 63, // Need at least some downside days
+        }
+    }
+}
 
 /// Downside beta factor.
 ///
@@ -31,24 +49,43 @@ use polars::prelude::*;
 /// DataFrame with columns: `symbol`, `date`, `downside_beta`
 #[derive(Debug, Clone)]
 pub struct DownsideBeta {
-    lookback: usize,
+    config: DownsideBetaConfig,
 }
 
 impl DownsideBeta {
     /// Create a new DownsideBeta factor with default lookback (252 days).
-    pub const fn new() -> Self {
-        Self { lookback: 252 }
+    pub fn new() -> Self {
+        Self {
+            config: DownsideBetaConfig::default(),
+        }
     }
 
     /// Create a DownsideBeta factor with custom lookback period.
-    pub const fn with_lookback(lookback: usize) -> Self {
-        Self { lookback }
+    pub fn with_lookback(lookback: usize) -> Self {
+        Self {
+            config: DownsideBetaConfig {
+                lookback,
+                min_periods: (lookback / 4).max(20),
+            },
+        }
     }
 }
 
 impl Default for DownsideBeta {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl ConfigurableFactor for DownsideBeta {
+    type Config = DownsideBetaConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
     }
 }
 
@@ -70,7 +107,7 @@ impl Factor for DownsideBeta {
     }
 
     fn lookback(&self) -> usize {
-        self.lookback
+        self.config.lookback
     }
 
     fn frequency(&self) -> DataFrequency {
@@ -107,8 +144,8 @@ impl Factor for DownsideBeta {
             .with_column(
                 col("return")
                     .rolling_std(RollingOptionsFixedWindow {
-                        window_size: self.lookback,
-                        min_periods: (self.lookback / 4).max(20), // Need at least some downside days
+                        window_size: self.config.lookback,
+                        min_periods: self.config.min_periods,
                         ..Default::default()
                     })
                     .over([col("symbol")])
@@ -117,8 +154,8 @@ impl Factor for DownsideBeta {
             .with_column(
                 col("market_return")
                     .rolling_std(RollingOptionsFixedWindow {
-                        window_size: self.lookback,
-                        min_periods: (self.lookback / 4).max(20),
+                        window_size: self.config.lookback,
+                        min_periods: self.config.min_periods,
                         ..Default::default()
                     })
                     .over([col("symbol")])

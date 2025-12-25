@@ -6,10 +6,23 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+
+/// Configuration for Earnings Smoothness factor.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct EarningsSmoothnessConfig {
+    /// Number of quarters to look back for volatility calculation (default: 8)
+    pub lookback: usize,
+}
+
+impl Default for EarningsSmoothnessConfig {
+    fn default() -> Self {
+        Self { lookback: 8 }
+    }
+}
 
 /// Earnings Smoothness factor.
 ///
@@ -27,9 +40,11 @@ use polars::prelude::*;
 /// operating cash flow. High-quality companies should have net income volatility
 /// similar to or lower than cash flow volatility.
 ///
-/// We use the last 8 quarters of data to compute volatility.
+/// We use the last 8 quarters of data by default to compute volatility.
 #[derive(Debug, Clone, Default)]
-pub struct EarningsSmoothness;
+pub struct EarningsSmoothness {
+    config: EarningsSmoothnessConfig,
+}
 
 impl Factor for EarningsSmoothness {
     fn name(&self) -> &str {
@@ -49,7 +64,7 @@ impl Factor for EarningsSmoothness {
     }
 
     fn lookback(&self) -> usize {
-        8 // 8 quarters for meaningful volatility calculation
+        self.config.lookback
     }
 
     fn frequency(&self) -> DataFrequency {
@@ -83,13 +98,25 @@ impl Factor for EarningsSmoothness {
     }
 }
 
+impl ConfigurableFactor for EarningsSmoothness {
+    type Config = EarningsSmoothnessConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_earnings_smoothness_metadata() {
-        let factor = EarningsSmoothness;
+        let factor = EarningsSmoothness::default();
         assert_eq!(factor.name(), "earnings_smoothness");
         assert_eq!(factor.lookback(), 8);
         assert_eq!(factor.frequency(), DataFrequency::Quarterly);
@@ -110,7 +137,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = EarningsSmoothness;
+        let factor = EarningsSmoothness::default();
         let result = factor
             .compute_raw(&df.lazy(), NaiveDate::from_ymd_opt(2024, 6, 30).unwrap())
             .unwrap();
@@ -137,7 +164,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = EarningsSmoothness;
+        let factor = EarningsSmoothness::default();
         let result = factor
             .compute_raw(&df.lazy(), NaiveDate::from_ymd_opt(2024, 6, 30).unwrap())
             .unwrap();
@@ -172,7 +199,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = EarningsSmoothness;
+        let factor = EarningsSmoothness::default();
         let result = factor
             .compute_raw(&df.lazy(), NaiveDate::from_ymd_opt(2024, 6, 30).unwrap())
             .unwrap();

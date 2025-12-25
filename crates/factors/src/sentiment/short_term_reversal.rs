@@ -13,19 +13,34 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+use serde::{Deserialize, Serialize};
 
-/// Short-Term Reversal factor based on 1-week returns.
+/// Configuration for the Short-Term Reversal factor.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ShortTermReversalConfig {
+    /// Number of days to look back for reversal calculation.
+    /// Default is 5 (1 week). Use 1 for daily reversal, 21 for monthly reversal.
+    pub lookback_days: usize,
+}
+
+impl Default for ShortTermReversalConfig {
+    fn default() -> Self {
+        Self { lookback_days: 5 }
+    }
+}
+
+/// Short-Term Reversal factor based on configurable lookback period.
 ///
-/// Computes the negative of the past week's return:
-/// `-1 * (P_t / P_{t-5} - 1)`
+/// Computes the negative of the past period's return:
+/// `-1 * (P_t / P_{t-n} - 1)`
 ///
 /// where:
 /// - `P_t` is the current price (close)
-/// - `P_{t-5}` is the price 5 trading days ago
+/// - `P_{t-n}` is the price n trading days ago
 ///
 /// Negative multiplier converts the signal into a reversal signal:
 /// - Positive values indicate stocks that declined recently (contrarian buy)
@@ -41,9 +56,11 @@ use polars::prelude::*;
 /// - `close`: Closing price
 ///
 /// # Lookback Period
-/// 5 trading days (approximately 1 week)
+/// Configurable via `lookback_days` (default: 5 trading days)
 #[derive(Debug, Clone, Default)]
-pub struct ShortTermReversal;
+pub struct ShortTermReversal {
+    config: ShortTermReversalConfig,
+}
 
 impl Factor for ShortTermReversal {
     fn name(&self) -> &str {
@@ -63,7 +80,7 @@ impl Factor for ShortTermReversal {
     }
 
     fn lookback(&self) -> usize {
-        5 // 1 week of trading days
+        self.config.lookback_days
     }
 
     fn frequency(&self) -> DataFrequency {
@@ -90,7 +107,7 @@ impl Factor for ShortTermReversal {
                 col("close")
                     .sort_by([col("date")], Default::default())
                     .slice(
-                        (lit(0) - lit(self.lookback() as i64 + 1)).cast(DataType::Int64),
+                        (lit(0) - lit(self.config.lookback_days as i64 + 1)).cast(DataType::Int64),
                         lit(1u32),
                     )
                     .first()
@@ -111,6 +128,18 @@ impl Factor for ShortTermReversal {
     }
 }
 
+impl ConfigurableFactor for ShortTermReversal {
+    type Config = ShortTermReversalConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -118,7 +147,7 @@ mod tests {
 
     #[test]
     fn test_short_term_reversal_decline() {
-        let factor = ShortTermReversal;
+        let factor = ShortTermReversal::default();
 
         // Create test data where price declined from $100 to $95 (-5%)
         let dates: Vec<String> = (0..6)
@@ -167,7 +196,7 @@ mod tests {
 
     #[test]
     fn test_short_term_reversal_increase() {
-        let factor = ShortTermReversal;
+        let factor = ShortTermReversal::default();
 
         // Create test data where price increased from $100 to $105 (+5%)
         let dates: Vec<String> = (0..6)
@@ -215,7 +244,7 @@ mod tests {
 
     #[test]
     fn test_short_term_reversal_multiple_stocks() {
-        let factor = ShortTermReversal;
+        let factor = ShortTermReversal::default();
 
         // Create test data for multiple stocks with different patterns
         let mut dates = Vec::new();
@@ -308,7 +337,7 @@ mod tests {
 
     #[test]
     fn test_short_term_reversal_metadata() {
-        let factor = ShortTermReversal;
+        let factor = ShortTermReversal::default();
 
         assert_eq!(factor.name(), "short_term_reversal");
         assert_eq!(factor.category(), FactorCategory::Sentiment);
@@ -319,7 +348,7 @@ mod tests {
 
     #[test]
     fn test_short_term_reversal_insufficient_history() {
-        let factor = ShortTermReversal;
+        let factor = ShortTermReversal::default();
 
         // Create test data with only 3 days (insufficient for 5-day lookback)
         let dates: Vec<String> = (0..3)

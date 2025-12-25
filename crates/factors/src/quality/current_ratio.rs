@@ -6,10 +6,14 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+
+/// Configuration for Current Ratio factor.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct CurrentRatioConfig {}
 
 /// Current Ratio factor.
 ///
@@ -22,7 +26,9 @@ use polars::prelude::*;
 /// short-term assets. A ratio above 1.0 indicates the company can cover its
 /// short-term liabilities.
 #[derive(Debug, Clone, Default)]
-pub struct CurrentRatio;
+pub struct CurrentRatio {
+    config: CurrentRatioConfig,
+}
 
 impl Factor for CurrentRatio {
     fn name(&self) -> &str {
@@ -64,13 +70,25 @@ impl Factor for CurrentRatio {
     }
 }
 
+impl ConfigurableFactor for CurrentRatio {
+    type Config = CurrentRatioConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_current_ratio_metadata() {
-        let factor = CurrentRatio;
+        let factor = CurrentRatio::default();
         assert_eq!(factor.name(), "current_ratio");
         assert_eq!(factor.lookback(), 1);
         assert_eq!(factor.frequency(), DataFrequency::Quarterly);
@@ -87,7 +105,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = CurrentRatio;
+        let factor = CurrentRatio::default();
         let result = factor
             .compute_raw(&df.lazy(), NaiveDate::from_ymd_opt(2024, 3, 31).unwrap())
             .unwrap();

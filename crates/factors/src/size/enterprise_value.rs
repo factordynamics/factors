@@ -6,10 +6,17 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+
+/// Configuration for enterprise value factor.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct EnterpriseValueConfig {
+    // Empty for now - size factors typically don't need configuration
+    // This struct exists for consistency and future extensibility
+}
 
 /// Enterprise value factor.
 ///
@@ -48,7 +55,9 @@ use polars::prelude::*;
 /// let result = factor.compute(&data, date)?;
 /// ```
 #[derive(Debug, Clone, Copy, Default)]
-pub struct EnterpriseValue;
+pub struct EnterpriseValue {
+    config: EnterpriseValueConfig,
+}
 
 impl Factor for EnterpriseValue {
     fn name(&self) -> &str {
@@ -92,6 +101,18 @@ impl Factor for EnterpriseValue {
     }
 }
 
+impl ConfigurableFactor for EnterpriseValue {
+    type Config = EnterpriseValueConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -109,7 +130,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = EnterpriseValue;
+        let factor = EnterpriseValue::default();
         let date = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
         let result = factor.compute_raw(&df.lazy(), date).unwrap();
 
@@ -168,7 +189,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = EnterpriseValue;
+        let factor = EnterpriseValue::default();
         let date = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
         let result = factor.compute_raw(&df.lazy(), date).unwrap();
 
@@ -189,7 +210,7 @@ mod tests {
 
     #[test]
     fn test_enterprise_value_trait_properties() {
-        let factor = EnterpriseValue;
+        let factor = EnterpriseValue::default();
 
         assert_eq!(factor.name(), "enterprise_value");
         assert_eq!(
@@ -216,7 +237,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = EnterpriseValue;
+        let factor = EnterpriseValue::default();
         let date = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
         let result = factor.compute_raw(&df.lazy(), date).unwrap();
 

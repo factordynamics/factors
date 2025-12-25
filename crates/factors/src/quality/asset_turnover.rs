@@ -6,10 +6,14 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+
+/// Configuration for Asset Turnover factor.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct AssetTurnoverConfig {}
 
 /// Asset Turnover factor.
 ///
@@ -21,7 +25,9 @@ use polars::prelude::*;
 /// This factor measures how effectively a company uses its assets to generate sales.
 /// Higher turnover ratios suggest more efficient use of assets.
 #[derive(Debug, Clone, Default)]
-pub struct AssetTurnover;
+pub struct AssetTurnover {
+    config: AssetTurnoverConfig,
+}
 
 impl Factor for AssetTurnover {
     fn name(&self) -> &str {
@@ -63,13 +69,25 @@ impl Factor for AssetTurnover {
     }
 }
 
+impl ConfigurableFactor for AssetTurnover {
+    type Config = AssetTurnoverConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_asset_turnover_metadata() {
-        let factor = AssetTurnover;
+        let factor = AssetTurnover::default();
         assert_eq!(factor.name(), "asset_turnover");
         assert_eq!(factor.lookback(), 1);
         assert_eq!(factor.frequency(), DataFrequency::Quarterly);
@@ -86,7 +104,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = AssetTurnover;
+        let factor = AssetTurnover::default();
         let result = factor
             .compute_raw(&df.lazy(), NaiveDate::from_ymd_opt(2024, 3, 31).unwrap())
             .unwrap();

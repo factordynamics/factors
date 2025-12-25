@@ -3,21 +3,40 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
 
+/// Configuration for mean reversion factor.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct MeanReversionConfig {
+    /// Lookback window in days for SMA and std dev (default: 20)
+    pub lookback: usize,
+    /// Number of standard deviations for Bollinger Bands (default: 2.0)
+    pub num_std_dev: f64,
+}
+
+impl Default for MeanReversionConfig {
+    fn default() -> Self {
+        Self {
+            lookback: 20,
+            num_std_dev: 2.0,
+        }
+    }
+}
+
 /// Mean reversion factor measuring price distance from moving average.
 ///
-/// Calculates how far the current price has deviated from its 20-day
-/// moving average, normalized by volatility:
-/// `(P_t - SMA_20) / (2 * σ_20)`
+/// Calculates how far the current price has deviated from its moving average,
+/// normalized by volatility:
+/// `(P_t - SMA) / (num_std_dev * σ)`
 ///
 /// where:
 /// - `P_t` is the current price
-/// - `SMA_20` is the 20-day simple moving average
-/// - `σ_20` is the 20-day standard deviation
+/// - `SMA` is the simple moving average over lookback period (default: 20-day)
+/// - `σ` is the standard deviation over lookback period
+/// - `num_std_dev` is the number of standard deviations (default: 2.0)
 ///
 /// This is essentially the Bollinger Band position:
 /// - Values near +1.0 indicate price at upper band (potentially overbought)
@@ -26,7 +45,9 @@ use polars::prelude::*;
 ///
 /// Captures mean reversion tendencies and identifies extreme price moves.
 #[derive(Debug, Clone, Default)]
-pub struct MeanReversion;
+pub struct MeanReversion {
+    config: MeanReversionConfig,
+}
 
 impl Factor for MeanReversion {
     fn name(&self) -> &str {
@@ -46,7 +67,7 @@ impl Factor for MeanReversion {
     }
 
     fn lookback(&self) -> usize {
-        20
+        self.config.lookback
     }
 
     fn frequency(&self) -> DataFrequency {
@@ -60,6 +81,9 @@ impl Factor for MeanReversion {
             .filter(col("date").lt_eq(lit(date.format("%Y-%m-%d").to_string())))
             .collect()?;
 
+        let lookback = self.config.lookback;
+        let num_std_dev = self.config.num_std_dev;
+
         // Group by symbol and compute mean reversion
         let result = filtered
             .lazy()
@@ -71,21 +95,21 @@ impl Factor for MeanReversion {
                     .sort_by([col("date")], Default::default())
                     .last()
                     .alias("current_price"),
-                // Get last 20 prices for SMA and std dev calculation
+                // Get last N prices for SMA and std dev calculation
                 col("close")
                     .sort_by([col("date")], Default::default())
-                    .tail(Some(self.lookback()))
-                    .alias("prices_20d"),
+                    .tail(Some(lookback))
+                    .alias("prices"),
             ])
             .with_columns([
-                // Calculate 20-day moving average
-                col("prices_20d").list().mean().alias("sma_20"),
-                // Calculate 20-day standard deviation
-                col("prices_20d").list().std(1).alias("std_20"),
+                // Calculate moving average
+                col("prices").list().mean().alias("sma"),
+                // Calculate standard deviation
+                col("prices").list().std(1).alias("std"),
             ])
             .with_column(
-                // (P_t - SMA_20) / (2 * σ_20)
-                ((col("current_price") - col("sma_20")) / (lit(2.0) * col("std_20")))
+                // (P_t - SMA) / (num_std_dev * σ)
+                ((col("current_price") - col("sma")) / (lit(num_std_dev) * col("std")))
                     .alias(self.name()),
             )
             .select([col("symbol"), col("date"), col(self.name())])
@@ -96,6 +120,18 @@ impl Factor for MeanReversion {
     }
 }
 
+impl ConfigurableFactor for MeanReversion {
+    type Config = MeanReversionConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -103,7 +139,7 @@ mod tests {
 
     #[test]
     fn test_mean_reversion_at_mean() {
-        let factor = MeanReversion;
+        let factor = MeanReversion::default();
 
         // Create test data with stable prices around 100
         let dates: Vec<String> = (0..20)
@@ -153,7 +189,7 @@ mod tests {
 
     #[test]
     fn test_mean_reversion_extreme_high() {
-        let factor = MeanReversion;
+        let factor = MeanReversion::default();
 
         // Create test data where last price is much higher than average
         let dates: Vec<String> = (0..21)
@@ -203,7 +239,7 @@ mod tests {
 
     #[test]
     fn test_mean_reversion_metadata() {
-        let factor = MeanReversion;
+        let factor = MeanReversion::default();
 
         assert_eq!(factor.name(), "mean_reversion");
         assert_eq!(factor.category(), FactorCategory::Momentum);

@@ -6,10 +6,14 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+
+/// Configuration for Return on Assets factor.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct RoaConfig {}
 
 /// Return on Assets factor.
 ///
@@ -21,7 +25,9 @@ use polars::prelude::*;
 /// This factor is used in quality-based strategies to identify companies
 /// that efficiently convert their asset base into profits.
 #[derive(Debug, Clone, Default)]
-pub struct Roa;
+pub struct Roa {
+    config: RoaConfig,
+}
 
 impl Factor for Roa {
     fn name(&self) -> &str {
@@ -63,13 +69,25 @@ impl Factor for Roa {
     }
 }
 
+impl ConfigurableFactor for Roa {
+    type Config = RoaConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_roa_metadata() {
-        let factor = Roa;
+        let factor = Roa::default();
         assert_eq!(factor.name(), "roa");
         assert_eq!(factor.lookback(), 1);
         assert_eq!(factor.frequency(), DataFrequency::Quarterly);
@@ -86,7 +104,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = Roa;
+        let factor = Roa::default();
         let result = factor
             .compute_raw(&df.lazy(), NaiveDate::from_ymd_opt(2024, 3, 31).unwrap())
             .unwrap();

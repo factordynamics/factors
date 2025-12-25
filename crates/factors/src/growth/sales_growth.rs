@@ -9,10 +9,25 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+use serde::{Deserialize, Serialize};
+
+/// Configuration for the Sales Growth factor.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SalesGrowthConfig {
+    /// Number of quarters to look back for growth calculation.
+    /// Default is 4 (year-over-year). Use 2 for semi-annual, 8 for 2-year growth.
+    pub growth_periods: usize,
+}
+
+impl Default for SalesGrowthConfig {
+    fn default() -> Self {
+        Self { growth_periods: 4 }
+    }
+}
 
 /// Sales growth factor - year-over-year revenue growth rate.
 ///
@@ -27,7 +42,9 @@ use polars::prelude::*;
 /// # Returns
 /// DataFrame with columns: `symbol`, `date`, `sales_growth`
 #[derive(Debug, Clone, Default)]
-pub struct SalesGrowth;
+pub struct SalesGrowth {
+    config: SalesGrowthConfig,
+}
 
 impl Factor for SalesGrowth {
     fn name(&self) -> &str {
@@ -47,7 +64,7 @@ impl Factor for SalesGrowth {
     }
 
     fn lookback(&self) -> usize {
-        4 // 4 quarters for year-over-year comparison
+        self.config.growth_periods
     }
 
     fn frequency(&self) -> DataFrequency {
@@ -72,21 +89,34 @@ impl Factor for SalesGrowth {
             )
             .collect()?;
 
-        // Compute year-over-year growth: (Revenue_t / Revenue_{t-4}) - 1
+        // Compute growth: (Revenue_t / Revenue_{t-n}) - 1
+        let lag_alias = format!("revenue_lag{}", self.config.growth_periods);
         let result = sorted
             .lazy()
             .with_column(
                 col("revenue")
-                    .shift(lit(4))
+                    .shift(lit(self.config.growth_periods as i64))
                     .over([col("symbol")])
-                    .alias("revenue_lag4"),
+                    .alias(&lag_alias),
             )
             .filter(col("date").eq(lit(date.to_string())))
-            .with_column(((col("revenue") / col("revenue_lag4")) - lit(1.0)).alias("sales_growth"))
+            .with_column(((col("revenue") / col(&lag_alias)) - lit(1.0)).alias("sales_growth"))
             .select([col("symbol"), col("date"), col("sales_growth")])
             .collect()?;
 
         Ok(result)
+    }
+}
+
+impl ConfigurableFactor for SalesGrowth {
+    type Config = SalesGrowthConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
     }
 }
 
@@ -107,7 +137,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = SalesGrowth;
+        let factor = SalesGrowth::default();
         let result = factor
             .compute_raw(&df.lazy(), NaiveDate::from_ymd_opt(2024, 1, 1).unwrap())
             .unwrap();
@@ -124,7 +154,7 @@ mod tests {
 
     #[test]
     fn test_sales_growth_metadata() {
-        let factor = SalesGrowth;
+        let factor = SalesGrowth::default();
         assert_eq!(factor.name(), "sales_growth");
         assert_eq!(factor.category(), FactorCategory::Growth);
         assert_eq!(factor.lookback(), 4);

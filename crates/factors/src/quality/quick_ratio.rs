@@ -6,10 +6,14 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+
+/// Configuration for Quick Ratio factor.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct QuickRatioConfig {}
 
 /// Quick Ratio factor.
 ///
@@ -21,7 +25,9 @@ use polars::prelude::*;
 /// This factor is a more conservative measure of liquidity than the current ratio,
 /// as it excludes inventory which may not be easily converted to cash.
 #[derive(Debug, Clone, Default)]
-pub struct QuickRatio;
+pub struct QuickRatio {
+    config: QuickRatioConfig,
+}
 
 impl Factor for QuickRatio {
     fn name(&self) -> &str {
@@ -70,13 +76,25 @@ impl Factor for QuickRatio {
     }
 }
 
+impl ConfigurableFactor for QuickRatio {
+    type Config = QuickRatioConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_quick_ratio_metadata() {
-        let factor = QuickRatio;
+        let factor = QuickRatio::default();
         assert_eq!(factor.name(), "quick_ratio");
         assert_eq!(factor.lookback(), 1);
         assert_eq!(factor.frequency(), DataFrequency::Quarterly);
@@ -94,7 +112,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = QuickRatio;
+        let factor = QuickRatio::default();
         let result = factor
             .compute_raw(&df.lazy(), NaiveDate::from_ymd_opt(2024, 3, 31).unwrap())
             .unwrap();

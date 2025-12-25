@@ -6,10 +6,11 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+use serde::{Deserialize, Serialize};
 
 /// Short interest ratio factor.
 ///
@@ -37,20 +38,39 @@ use polars::prelude::*;
 ///
 /// - Dechow, P. M., A. P. Hutton, L. Meulbroek, and R. G. Sloan (2001).
 ///   "Short-sellers, fundamental analysis, and stock returns," Journal of Financial Economics.
+///
+/// Configuration for ShortInterestRatio factor.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ShortInterestRatioConfig {
+    /// Lookback period (typically 1 for current ratio).
+    pub lookback: usize,
+}
+
+impl Default for ShortInterestRatioConfig {
+    fn default() -> Self {
+        Self { lookback: 1 }
+    }
+}
+
+/// Short interest ratio factor implementation.
 #[derive(Debug, Clone)]
 pub struct ShortInterestRatio {
-    lookback: usize,
+    config: ShortInterestRatioConfig,
 }
 
 impl ShortInterestRatio {
     /// Creates a new ShortInterestRatio factor with default 1-day lookback.
     pub const fn new() -> Self {
-        Self { lookback: 1 }
+        Self {
+            config: ShortInterestRatioConfig { lookback: 1 },
+        }
     }
 
     /// Creates a ShortInterestRatio factor with a custom lookback period.
     pub const fn with_lookback(lookback: usize) -> Self {
-        Self { lookback }
+        Self {
+            config: ShortInterestRatioConfig { lookback },
+        }
     }
 }
 
@@ -78,7 +98,7 @@ impl Factor for ShortInterestRatio {
     }
 
     fn lookback(&self) -> usize {
-        self.lookback
+        self.config.lookback
     }
 
     fn frequency(&self) -> DataFrequency {
@@ -106,6 +126,18 @@ impl Factor for ShortInterestRatio {
             .collect()?;
 
         Ok(result)
+    }
+}
+
+impl ConfigurableFactor for ShortInterestRatio {
+    type Config = ShortInterestRatioConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
     }
 }
 

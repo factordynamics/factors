@@ -6,10 +6,20 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+
+/// Configuration for enterprise yield factor.
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+pub struct EnterpriseYieldConfig;
+
+impl Default for EnterpriseYieldConfig {
+    fn default() -> Self {
+        Self
+    }
+}
 
 /// Enterprise yield value factor.
 ///
@@ -47,8 +57,18 @@ use polars::prelude::*;
 ///
 /// let result = factor.compute(&data, NaiveDate::from_ymd_opt(2024, 3, 31).unwrap())?;
 /// ```
-#[derive(Debug, Clone, Copy, Default)]
-pub struct EnterpriseYield;
+#[derive(Debug, Clone, Copy)]
+pub struct EnterpriseYield {
+    config: EnterpriseYieldConfig,
+}
+
+impl Default for EnterpriseYield {
+    fn default() -> Self {
+        Self {
+            config: EnterpriseYieldConfig,
+        }
+    }
+}
 
 impl Factor for EnterpriseYield {
     fn name(&self) -> &str {
@@ -90,6 +110,18 @@ impl Factor for EnterpriseYield {
     }
 }
 
+impl ConfigurableFactor for EnterpriseYield {
+    type Config = EnterpriseYieldConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -105,7 +137,7 @@ mod tests {
         .unwrap()
         .lazy();
 
-        let factor = EnterpriseYield;
+        let factor = EnterpriseYield::default();
         let date = NaiveDate::from_ymd_opt(2024, 3, 31).unwrap();
         let result = factor.compute_raw(&data, date).unwrap();
 
@@ -120,7 +152,7 @@ mod tests {
 
     #[test]
     fn test_enterprise_yield_metadata() {
-        let factor = EnterpriseYield;
+        let factor = EnterpriseYield::default();
         assert_eq!(factor.name(), "enterprise_yield");
         assert_eq!(factor.category(), FactorCategory::Value);
         assert_eq!(factor.lookback(), 1);
@@ -138,7 +170,7 @@ mod tests {
         .unwrap()
         .lazy();
 
-        let factor = EnterpriseYield;
+        let factor = EnterpriseYield::default();
         let date = NaiveDate::from_ymd_opt(2024, 3, 31).unwrap();
         let result = factor.compute_raw(&data, date).unwrap();
 

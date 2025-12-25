@@ -6,10 +6,11 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+use serde::{Deserialize, Serialize};
 
 /// Bid-ask spread factor.
 ///
@@ -38,20 +39,39 @@ use polars::prelude::*;
 ///
 /// - Roll, R. (1984). "A simple implicit measure of the effective bid-ask spread
 ///   in an efficient market," Journal of Finance.
+///
+/// Configuration for BidAskSpread factor.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BidAskSpreadConfig {
+    /// Lookback period (typically 1 for current spread).
+    pub lookback: usize,
+}
+
+impl Default for BidAskSpreadConfig {
+    fn default() -> Self {
+        Self { lookback: 1 }
+    }
+}
+
+/// Bid-ask spread factor implementation.
 #[derive(Debug, Clone)]
 pub struct BidAskSpread {
-    lookback: usize,
+    config: BidAskSpreadConfig,
 }
 
 impl BidAskSpread {
     /// Creates a new BidAskSpread factor with default 1-day lookback.
     pub const fn new() -> Self {
-        Self { lookback: 1 }
+        Self {
+            config: BidAskSpreadConfig { lookback: 1 },
+        }
     }
 
     /// Creates a BidAskSpread factor with a custom lookback period.
     pub const fn with_lookback(lookback: usize) -> Self {
-        Self { lookback }
+        Self {
+            config: BidAskSpreadConfig { lookback },
+        }
     }
 }
 
@@ -79,7 +99,7 @@ impl Factor for BidAskSpread {
     }
 
     fn lookback(&self) -> usize {
-        self.lookback
+        self.config.lookback
     }
 
     fn frequency(&self) -> DataFrequency {
@@ -109,6 +129,18 @@ impl Factor for BidAskSpread {
             .collect()?;
 
         Ok(result)
+    }
+}
+
+impl ConfigurableFactor for BidAskSpread {
+    type Config = BidAskSpreadConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
     }
 }
 

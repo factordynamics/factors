@@ -3,10 +3,23 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+
+/// Configuration for volatility breakout factor.
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+pub struct VolatilityBreakoutConfig {
+    /// Number of trading days for SMA and ATR calculation (default: 20)
+    pub lookback: usize,
+}
+
+impl Default for VolatilityBreakoutConfig {
+    fn default() -> Self {
+        Self { lookback: 20 }
+    }
+}
 
 /// Volatility Breakout factor measuring price moves relative to volatility.
 ///
@@ -28,7 +41,9 @@ use polars::prelude::*;
 /// Normalizing by ATR makes breakouts comparable across different securities
 /// and volatility regimes.
 #[derive(Debug, Clone, Default)]
-pub struct VolatilityBreakout;
+pub struct VolatilityBreakout {
+    config: VolatilityBreakoutConfig,
+}
 
 impl Factor for VolatilityBreakout {
     fn name(&self) -> &str {
@@ -48,7 +63,7 @@ impl Factor for VolatilityBreakout {
     }
 
     fn lookback(&self) -> usize {
-        20
+        self.config.lookback
     }
 
     fn frequency(&self) -> DataFrequency {
@@ -167,6 +182,18 @@ impl Factor for VolatilityBreakout {
     }
 }
 
+impl ConfigurableFactor for VolatilityBreakout {
+    type Config = VolatilityBreakoutConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -174,7 +201,7 @@ mod tests {
 
     #[test]
     fn test_volatility_breakout_upward() {
-        let factor = VolatilityBreakout;
+        let factor = VolatilityBreakout::default();
 
         // Create test data with stable prices then a breakout
         let dates: Vec<String> = (0..22)
@@ -231,7 +258,7 @@ mod tests {
 
     #[test]
     fn test_volatility_breakout_near_average() {
-        let factor = VolatilityBreakout;
+        let factor = VolatilityBreakout::default();
 
         // Create test data with prices oscillating around mean
         let dates: Vec<String> = (0..21)
@@ -284,7 +311,7 @@ mod tests {
 
     #[test]
     fn test_volatility_breakout_metadata() {
-        let factor = VolatilityBreakout;
+        let factor = VolatilityBreakout::default();
 
         assert_eq!(factor.name(), "volatility_breakout");
         assert_eq!(factor.category(), FactorCategory::Momentum);

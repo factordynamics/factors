@@ -6,10 +6,11 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+use serde::{Deserialize, Serialize};
 
 /// Amihud illiquidity factor.
 ///
@@ -43,20 +44,50 @@ use polars::prelude::*;
 ///
 /// - Amihud, Y. (2002). "Illiquidity and stock returns: cross-section and
 ///   time-series effects," Journal of Financial Markets 5, 31-56.
+///
+/// Configuration for AmihudIlliquidity factor.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AmihudIlliquidityConfig {
+    /// Number of days to average illiquidity over.
+    pub lookback: usize,
+    /// Minimum number of periods required for valid calculation.
+    pub min_periods: usize,
+}
+
+impl Default for AmihudIlliquidityConfig {
+    fn default() -> Self {
+        Self {
+            lookback: 21,
+            min_periods: 21,
+        }
+    }
+}
+
+/// Amihud illiquidity factor implementation.
 #[derive(Debug, Clone)]
 pub struct AmihudIlliquidity {
-    lookback: usize,
+    config: AmihudIlliquidityConfig,
 }
 
 impl AmihudIlliquidity {
     /// Creates a new AmihudIlliquidity factor with default 21-day lookback.
     pub const fn new() -> Self {
-        Self { lookback: 21 }
+        Self {
+            config: AmihudIlliquidityConfig {
+                lookback: 21,
+                min_periods: 21,
+            },
+        }
     }
 
     /// Creates an AmihudIlliquidity factor with a custom lookback period.
     pub const fn with_lookback(lookback: usize) -> Self {
-        Self { lookback }
+        Self {
+            config: AmihudIlliquidityConfig {
+                lookback,
+                min_periods: lookback,
+            },
+        }
     }
 }
 
@@ -84,7 +115,7 @@ impl Factor for AmihudIlliquidity {
     }
 
     fn lookback(&self) -> usize {
-        self.lookback
+        self.config.lookback
     }
 
     fn frequency(&self) -> DataFrequency {
@@ -122,8 +153,8 @@ impl Factor for AmihudIlliquidity {
             .with_column(
                 col("daily_illiquidity")
                     .rolling_mean(RollingOptionsFixedWindow {
-                        window_size: self.lookback,
-                        min_periods: self.lookback,
+                        window_size: self.config.lookback,
+                        min_periods: self.config.min_periods,
                         ..Default::default()
                     })
                     .over([col("symbol")])
@@ -136,6 +167,18 @@ impl Factor for AmihudIlliquidity {
             .collect()?;
 
         Ok(result)
+    }
+}
+
+impl ConfigurableFactor for AmihudIlliquidity {
+    type Config = AmihudIlliquidityConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
     }
 }
 

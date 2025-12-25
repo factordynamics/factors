@@ -6,10 +6,23 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+
+/// Configuration for Earnings Persistence factor.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct EarningsPersistenceConfig {
+    /// Number of quarters to look back for persistence calculation (default: 8)
+    pub lookback: usize,
+}
+
+impl Default for EarningsPersistenceConfig {
+    fn default() -> Self {
+        Self { lookback: 8 }
+    }
+}
 
 /// Earnings Persistence factor.
 ///
@@ -24,9 +37,11 @@ use polars::prelude::*;
 /// - Negative values: Very high volatility relative to mean
 ///
 /// More stable earnings are considered higher quality and more predictable.
-/// We use the last 8 quarters of data to compute statistics.
+/// We use the last 8 quarters of data by default to compute statistics.
 #[derive(Debug, Clone, Default)]
-pub struct EarningsPersistence;
+pub struct EarningsPersistence {
+    config: EarningsPersistenceConfig,
+}
 
 impl Factor for EarningsPersistence {
     fn name(&self) -> &str {
@@ -46,7 +61,7 @@ impl Factor for EarningsPersistence {
     }
 
     fn lookback(&self) -> usize {
-        8 // 8 quarters needed for meaningful regression
+        self.config.lookback
     }
 
     fn frequency(&self) -> DataFrequency {
@@ -85,13 +100,25 @@ impl Factor for EarningsPersistence {
     }
 }
 
+impl ConfigurableFactor for EarningsPersistence {
+    type Config = EarningsPersistenceConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_earnings_persistence_metadata() {
-        let factor = EarningsPersistence;
+        let factor = EarningsPersistence::default();
         assert_eq!(factor.name(), "earnings_persistence");
         assert_eq!(factor.lookback(), 8);
         assert_eq!(factor.frequency(), DataFrequency::Quarterly);
@@ -111,7 +138,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = EarningsPersistence;
+        let factor = EarningsPersistence::default();
         let result = factor
             .compute_raw(&df.lazy(), NaiveDate::from_ymd_opt(2024, 6, 30).unwrap())
             .unwrap();
@@ -142,7 +169,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = EarningsPersistence;
+        let factor = EarningsPersistence::default();
         let result = factor
             .compute_raw(&df.lazy(), NaiveDate::from_ymd_opt(2024, 6, 30).unwrap())
             .unwrap();
@@ -180,7 +207,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = EarningsPersistence;
+        let factor = EarningsPersistence::default();
         let result = factor
             .compute_raw(&df.lazy(), NaiveDate::from_ymd_opt(2024, 6, 30).unwrap())
             .unwrap();

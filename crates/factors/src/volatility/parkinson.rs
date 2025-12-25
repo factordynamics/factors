@@ -11,10 +11,28 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+
+/// Configuration for the ParkinsonVolatility factor.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ParkinsonVolatilityConfig {
+    /// Number of trading days for the rolling calculation.
+    pub lookback: usize,
+    /// Minimum number of periods required for a valid calculation.
+    pub min_periods: usize,
+}
+
+impl Default for ParkinsonVolatilityConfig {
+    fn default() -> Self {
+        Self {
+            lookback: 20,
+            min_periods: 20,
+        }
+    }
+}
 
 /// Parkinson volatility factor.
 ///
@@ -32,24 +50,43 @@ use polars::prelude::*;
 /// DataFrame with columns: `symbol`, `date`, `parkinson_volatility`
 #[derive(Debug, Clone)]
 pub struct ParkinsonVolatility {
-    lookback: usize,
+    config: ParkinsonVolatilityConfig,
 }
 
 impl ParkinsonVolatility {
     /// Create a new ParkinsonVolatility factor with default lookback (20 days).
-    pub const fn new() -> Self {
-        Self { lookback: 20 }
+    pub fn new() -> Self {
+        Self {
+            config: ParkinsonVolatilityConfig::default(),
+        }
     }
 
     /// Create a ParkinsonVolatility factor with custom lookback period.
     pub const fn with_lookback(lookback: usize) -> Self {
-        Self { lookback }
+        Self {
+            config: ParkinsonVolatilityConfig {
+                lookback,
+                min_periods: lookback,
+            },
+        }
     }
 }
 
 impl Default for ParkinsonVolatility {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl ConfigurableFactor for ParkinsonVolatility {
+    type Config = ParkinsonVolatilityConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
     }
 }
 
@@ -71,7 +108,7 @@ impl Factor for ParkinsonVolatility {
     }
 
     fn lookback(&self) -> usize {
-        self.lookback
+        self.config.lookback
     }
 
     fn frequency(&self) -> DataFrequency {
@@ -109,8 +146,8 @@ impl Factor for ParkinsonVolatility {
             .with_column(
                 col("hl_log_squared")
                     .rolling_mean(RollingOptionsFixedWindow {
-                        window_size: self.lookback,
-                        min_periods: self.lookback,
+                        window_size: self.config.lookback,
+                        min_periods: self.config.min_periods,
                         ..Default::default()
                     })
                     .over([col("symbol")])

@@ -6,10 +6,11 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+use serde::{Deserialize, Serialize};
 
 /// Kyle's lambda price impact coefficient.
 ///
@@ -42,20 +43,50 @@ use polars::prelude::*;
 /// - Kyle, A. S. (1985). "Continuous auctions and insider trading," Econometrica 53(6), 1315-1335.
 /// - Hasbrouck, J. (2009). "Trading costs and returns for U.S. equities: Estimating effective
 ///   costs from daily data," Journal of Finance 64(3), 1445-1477.
+///
+/// Configuration for KyleLambda factor.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KyleLambdaConfig {
+    /// Number of days for regression window.
+    pub lookback: usize,
+    /// Minimum number of periods required for valid calculation.
+    pub min_periods: usize,
+}
+
+impl Default for KyleLambdaConfig {
+    fn default() -> Self {
+        Self {
+            lookback: 20,
+            min_periods: 20,
+        }
+    }
+}
+
+/// Kyle's lambda price impact factor implementation.
 #[derive(Debug, Clone)]
 pub struct KyleLambda {
-    lookback: usize,
+    config: KyleLambdaConfig,
 }
 
 impl KyleLambda {
     /// Creates a new KyleLambda factor with default 20-day lookback.
     pub const fn new() -> Self {
-        Self { lookback: 20 }
+        Self {
+            config: KyleLambdaConfig {
+                lookback: 20,
+                min_periods: 20,
+            },
+        }
     }
 
     /// Creates a KyleLambda factor with a custom lookback period.
     pub const fn with_lookback(lookback: usize) -> Self {
-        Self { lookback }
+        Self {
+            config: KyleLambdaConfig {
+                lookback,
+                min_periods: lookback,
+            },
+        }
     }
 }
 
@@ -83,7 +114,7 @@ impl Factor for KyleLambda {
     }
 
     fn lookback(&self) -> usize {
-        self.lookback
+        self.config.lookback
     }
 
     fn frequency(&self) -> DataFrequency {
@@ -124,8 +155,8 @@ impl Factor for KyleLambda {
             .with_column(
                 col("abs_ret_svol_product")
                     .rolling_mean(RollingOptionsFixedWindow {
-                        window_size: self.lookback,
-                        min_periods: self.lookback,
+                        window_size: self.config.lookback,
+                        min_periods: self.config.min_periods,
                         ..Default::default()
                     })
                     .over([col("symbol")])
@@ -134,8 +165,8 @@ impl Factor for KyleLambda {
             .with_column(
                 col("abs_returns")
                     .rolling_mean(RollingOptionsFixedWindow {
-                        window_size: self.lookback,
-                        min_periods: self.lookback,
+                        window_size: self.config.lookback,
+                        min_periods: self.config.min_periods,
                         ..Default::default()
                     })
                     .over([col("symbol")])
@@ -144,8 +175,8 @@ impl Factor for KyleLambda {
             .with_column(
                 col("signed_volume")
                     .rolling_mean(RollingOptionsFixedWindow {
-                        window_size: self.lookback,
-                        min_periods: self.lookback,
+                        window_size: self.config.lookback,
+                        min_periods: self.config.min_periods,
                         ..Default::default()
                     })
                     .over([col("symbol")])
@@ -159,8 +190,8 @@ impl Factor for KyleLambda {
             .with_column(
                 col("signed_volume")
                     .rolling_var(RollingOptionsFixedWindow {
-                        window_size: self.lookback,
-                        min_periods: self.lookback,
+                        window_size: self.config.lookback,
+                        min_periods: self.config.min_periods,
                         ..Default::default()
                     })
                     .over([col("symbol")])
@@ -186,6 +217,18 @@ impl Factor for KyleLambda {
             .collect()?;
 
         Ok(result)
+    }
+}
+
+impl ConfigurableFactor for KyleLambda {
+    type Config = KyleLambdaConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
     }
 }
 

@@ -6,10 +6,11 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+use serde::{Deserialize, Serialize};
 
 /// Corwin-Schultz high-low spread estimator.
 ///
@@ -41,20 +42,50 @@ use polars::prelude::*;
 ///
 /// - Corwin, S. A., and P. Schultz (2012). "A simple way to estimate bid-ask spreads
 ///   from daily high and low prices," Journal of Finance 67(2), 719-760.
+///
+/// Configuration for CorwinSchultz factor.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CorwinSchultzConfig {
+    /// Number of days to average spread estimate over.
+    pub lookback: usize,
+    /// Minimum number of periods required for valid calculation.
+    pub min_periods: usize,
+}
+
+impl Default for CorwinSchultzConfig {
+    fn default() -> Self {
+        Self {
+            lookback: 20,
+            min_periods: 20,
+        }
+    }
+}
+
+/// Corwin-Schultz spread estimator implementation.
 #[derive(Debug, Clone)]
 pub struct CorwinSchultz {
-    lookback: usize,
+    config: CorwinSchultzConfig,
 }
 
 impl CorwinSchultz {
     /// Creates a new CorwinSchultz factor with default 20-day lookback.
     pub const fn new() -> Self {
-        Self { lookback: 20 }
+        Self {
+            config: CorwinSchultzConfig {
+                lookback: 20,
+                min_periods: 20,
+            },
+        }
     }
 
     /// Creates a CorwinSchultz factor with a custom lookback period.
     pub const fn with_lookback(lookback: usize) -> Self {
-        Self { lookback }
+        Self {
+            config: CorwinSchultzConfig {
+                lookback,
+                min_periods: lookback,
+            },
+        }
     }
 }
 
@@ -82,7 +113,7 @@ impl Factor for CorwinSchultz {
     }
 
     fn lookback(&self) -> usize {
-        self.lookback
+        self.config.lookback
     }
 
     fn frequency(&self) -> DataFrequency {
@@ -174,8 +205,8 @@ impl Factor for CorwinSchultz {
             .with_column(
                 col("daily_spread")
                     .rolling_mean(RollingOptionsFixedWindow {
-                        window_size: self.lookback,
-                        min_periods: self.lookback,
+                        window_size: self.config.lookback,
+                        min_periods: self.config.min_periods,
                         ..Default::default()
                     })
                     .over([col("symbol")])
@@ -188,6 +219,18 @@ impl Factor for CorwinSchultz {
             .collect()?;
 
         Ok(result)
+    }
+}
+
+impl ConfigurableFactor for CorwinSchultz {
+    type Config = CorwinSchultzConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
     }
 }
 

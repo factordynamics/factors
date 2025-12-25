@@ -12,10 +12,27 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+use serde::{Deserialize, Serialize};
+
+/// Configuration for the Earnings Surprise factor.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct EarningsSurpriseConfig {
+    /// Minimum standard deviation threshold to filter out low-quality data.
+    /// Default is 0.0 (no threshold).
+    pub min_std_threshold: f64,
+}
+
+impl Default for EarningsSurpriseConfig {
+    fn default() -> Self {
+        Self {
+            min_std_threshold: 0.0,
+        }
+    }
+}
 
 /// Earnings Surprise factor measuring standardized unexpected earnings.
 ///
@@ -42,7 +59,9 @@ use polars::prelude::*;
 /// When `surprise_std` is not available, you can use a simple unstandardized
 /// version: `(eps_actual - eps_expected) / |eps_expected|`
 #[derive(Debug, Clone, Default)]
-pub struct EarningsSurprise;
+pub struct EarningsSurprise {
+    config: EarningsSurpriseConfig,
+}
 
 impl Factor for EarningsSurprise {
     fn name(&self) -> &str {
@@ -101,7 +120,7 @@ impl Factor for EarningsSurprise {
                     .last()
                     .alias("surprise_std"),
             ])
-            .filter(col("surprise_std").gt(lit(0.0))) // Filter out zero std dev before calculation
+            .filter(col("surprise_std").gt(lit(self.config.min_std_threshold))) // Filter out low std dev before calculation
             .with_column(
                 // Calculate SUE: (actual - expected) / std(surprise)
                 ((col("eps_actual") - col("eps_expected")) / col("surprise_std"))
@@ -115,6 +134,18 @@ impl Factor for EarningsSurprise {
     }
 }
 
+impl ConfigurableFactor for EarningsSurprise {
+    type Config = EarningsSurpriseConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -122,7 +153,7 @@ mod tests {
 
     #[test]
     fn test_earnings_surprise_positive() {
-        let factor = EarningsSurprise;
+        let factor = EarningsSurprise::default();
 
         // Create test data with positive surprise
         let df = df! {
@@ -155,7 +186,7 @@ mod tests {
 
     #[test]
     fn test_earnings_surprise_negative() {
-        let factor = EarningsSurprise;
+        let factor = EarningsSurprise::default();
 
         // Create test data with negative surprise
         let df = df! {
@@ -191,7 +222,7 @@ mod tests {
 
     #[test]
     fn test_earnings_surprise_multiple_stocks() {
-        let factor = EarningsSurprise;
+        let factor = EarningsSurprise::default();
 
         // Create test data for multiple stocks
         let df = df! {
@@ -231,7 +262,7 @@ mod tests {
 
     #[test]
     fn test_earnings_surprise_metadata() {
-        let factor = EarningsSurprise;
+        let factor = EarningsSurprise::default();
 
         assert_eq!(factor.name(), "earnings_surprise");
         assert_eq!(factor.category(), FactorCategory::Sentiment);
@@ -251,7 +282,7 @@ mod tests {
 
     #[test]
     fn test_earnings_surprise_filters_zero_std() {
-        let factor = EarningsSurprise;
+        let factor = EarningsSurprise::default();
 
         // Create test data with zero std dev (should be filtered out)
         let df = df! {

@@ -6,10 +6,14 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+
+/// Configuration for Profit Margin factor.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ProfitMarginConfig {}
 
 /// Profit Margin factor.
 ///
@@ -21,7 +25,9 @@ use polars::prelude::*;
 /// This factor is used in quality-based strategies to identify companies
 /// with strong operational efficiency and pricing power.
 #[derive(Debug, Clone, Default)]
-pub struct ProfitMargin;
+pub struct ProfitMargin {
+    config: ProfitMarginConfig,
+}
 
 impl Factor for ProfitMargin {
     fn name(&self) -> &str {
@@ -63,13 +69,25 @@ impl Factor for ProfitMargin {
     }
 }
 
+impl ConfigurableFactor for ProfitMargin {
+    type Config = ProfitMarginConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_profit_margin_metadata() {
-        let factor = ProfitMargin;
+        let factor = ProfitMargin::default();
         assert_eq!(factor.name(), "profit_margin");
         assert_eq!(factor.lookback(), 1);
         assert_eq!(factor.frequency(), DataFrequency::Quarterly);
@@ -86,7 +104,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = ProfitMargin;
+        let factor = ProfitMargin::default();
         let result = factor
             .compute_raw(&df.lazy(), NaiveDate::from_ymd_opt(2024, 3, 31).unwrap())
             .unwrap();

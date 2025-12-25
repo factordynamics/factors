@@ -81,32 +81,32 @@ impl FactorRegistry {
         let mut registry = Self::new();
 
         // Momentum factors
-        registry.register(Arc::new(crate::momentum::ShortTermMomentum));
-        registry.register(Arc::new(crate::momentum::MediumTermMomentum));
-        registry.register(Arc::new(crate::momentum::LongTermMomentum));
+        registry.register(Arc::new(crate::momentum::ShortTermMomentum::default()));
+        registry.register(Arc::new(crate::momentum::MediumTermMomentum::default()));
+        registry.register(Arc::new(crate::momentum::LongTermMomentum::default()));
 
         // Value factors
-        registry.register(Arc::new(crate::value::BookToPrice));
-        registry.register(Arc::new(crate::value::EarningsYield));
-        registry.register(Arc::new(crate::value::FcfYield));
+        registry.register(Arc::new(crate::value::BookToPrice::default()));
+        registry.register(Arc::new(crate::value::EarningsYield::default()));
+        registry.register(Arc::new(crate::value::FcfYield::default()));
 
         // Quality factors
-        registry.register(Arc::new(crate::quality::Roe));
-        registry.register(Arc::new(crate::quality::Roa));
-        registry.register(Arc::new(crate::quality::ProfitMargin));
-        registry.register(Arc::new(crate::quality::Leverage));
-        registry.register(Arc::new(crate::quality::GrossProfitability));
+        registry.register(Arc::new(crate::quality::Roe::default()));
+        registry.register(Arc::new(crate::quality::Roa::default()));
+        registry.register(Arc::new(crate::quality::ProfitMargin::default()));
+        registry.register(Arc::new(crate::quality::Leverage::default()));
+        registry.register(Arc::new(crate::quality::GrossProfitability::default()));
 
         // Size factors
-        registry.register(Arc::new(crate::size::LogMarketCap));
+        registry.register(Arc::new(crate::size::LogMarketCap::default()));
 
         // Volatility factors
         registry.register(Arc::new(crate::volatility::MarketBeta::default()));
         registry.register(Arc::new(crate::volatility::HistoricalVolatility::default()));
 
         // Growth factors
-        registry.register(Arc::new(crate::growth::EarningsGrowth));
-        registry.register(Arc::new(crate::growth::SalesGrowth));
+        registry.register(Arc::new(crate::growth::EarningsGrowth::default()));
+        registry.register(Arc::new(crate::growth::SalesGrowth::default()));
 
         // Liquidity factors
         registry.register(Arc::new(crate::liquidity::TurnoverRatio::default()));
@@ -121,7 +121,7 @@ impl FactorRegistry {
         registry.register(Arc::new(crate::liquidity::KyleLambda::default()));
 
         // Sentiment factors
-        registry.register(Arc::new(crate::sentiment::AnalystRevisions));
+        registry.register(Arc::new(crate::sentiment::AnalystRevisions::default()));
 
         registry
     }

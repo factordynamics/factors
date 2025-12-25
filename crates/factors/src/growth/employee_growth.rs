@@ -9,10 +9,25 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+use serde::{Deserialize, Serialize};
+
+/// Configuration for the Employee Growth factor.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EmployeeGrowthConfig {
+    /// Number of quarters to look back for growth calculation.
+    /// Default is 4 (year-over-year). Use 2 for semi-annual, 8 for 2-year growth.
+    pub growth_periods: usize,
+}
+
+impl Default for EmployeeGrowthConfig {
+    fn default() -> Self {
+        Self { growth_periods: 4 }
+    }
+}
 
 /// Employee growth factor - year-over-year employee count growth rate.
 ///
@@ -27,7 +42,9 @@ use polars::prelude::*;
 /// # Returns
 /// DataFrame with columns: `symbol`, `date`, `employee_growth`
 #[derive(Debug, Clone, Default)]
-pub struct EmployeeGrowth;
+pub struct EmployeeGrowth {
+    config: EmployeeGrowthConfig,
+}
 
 impl Factor for EmployeeGrowth {
     fn name(&self) -> &str {
@@ -47,7 +64,7 @@ impl Factor for EmployeeGrowth {
     }
 
     fn lookback(&self) -> usize {
-        4 // 4 quarters for year-over-year comparison
+        self.config.growth_periods
     }
 
     fn frequency(&self) -> DataFrequency {
@@ -72,23 +89,34 @@ impl Factor for EmployeeGrowth {
             )
             .collect()?;
 
-        // Compute year-over-year growth: (Employees_t / Employees_{t-4}) - 1
+        // Compute growth: (Employees_t / Employees_{t-n}) - 1
+        let lag_alias = format!("employees_lag{}", self.config.growth_periods);
         let result = sorted
             .lazy()
             .with_column(
                 col("employees")
-                    .shift(lit(4))
+                    .shift(lit(self.config.growth_periods as i64))
                     .over([col("symbol")])
-                    .alias("employees_lag4"),
+                    .alias(&lag_alias),
             )
             .filter(col("date").eq(lit(date.to_string())))
-            .with_column(
-                ((col("employees") / col("employees_lag4")) - lit(1.0)).alias("employee_growth"),
-            )
+            .with_column(((col("employees") / col(&lag_alias)) - lit(1.0)).alias("employee_growth"))
             .select([col("symbol"), col("date"), col("employee_growth")])
             .collect()?;
 
         Ok(result)
+    }
+}
+
+impl ConfigurableFactor for EmployeeGrowth {
+    type Config = EmployeeGrowthConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
     }
 }
 
@@ -109,7 +137,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = EmployeeGrowth;
+        let factor = EmployeeGrowth::default();
         let result = factor
             .compute_raw(&df.lazy(), NaiveDate::from_ymd_opt(2024, 1, 1).unwrap())
             .unwrap();
@@ -126,7 +154,7 @@ mod tests {
 
     #[test]
     fn test_employee_growth_metadata() {
-        let factor = EmployeeGrowth;
+        let factor = EmployeeGrowth::default();
         assert_eq!(factor.name(), "employee_growth");
         assert_eq!(factor.category(), FactorCategory::Growth);
         assert_eq!(factor.lookback(), 4);
@@ -144,7 +172,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = EmployeeGrowth;
+        let factor = EmployeeGrowth::default();
         let result = factor
             .compute_raw(&df.lazy(), NaiveDate::from_ymd_opt(2024, 1, 1).unwrap())
             .unwrap();

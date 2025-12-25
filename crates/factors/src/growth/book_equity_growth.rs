@@ -9,10 +9,25 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+use serde::{Deserialize, Serialize};
+
+/// Configuration for the Book Equity Growth factor.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BookEquityGrowthConfig {
+    /// Number of quarters to look back for growth calculation.
+    /// Default is 4 (year-over-year). Use 2 for semi-annual, 8 for 2-year growth.
+    pub growth_periods: usize,
+}
+
+impl Default for BookEquityGrowthConfig {
+    fn default() -> Self {
+        Self { growth_periods: 4 }
+    }
+}
 
 /// Book equity growth factor - year-over-year book equity growth rate.
 ///
@@ -27,7 +42,9 @@ use polars::prelude::*;
 /// # Returns
 /// DataFrame with columns: `symbol`, `date`, `book_equity_growth`
 #[derive(Debug, Clone, Default)]
-pub struct BookEquityGrowth;
+pub struct BookEquityGrowth {
+    config: BookEquityGrowthConfig,
+}
 
 impl Factor for BookEquityGrowth {
     fn name(&self) -> &str {
@@ -47,7 +64,7 @@ impl Factor for BookEquityGrowth {
     }
 
     fn lookback(&self) -> usize {
-        4 // 4 quarters for year-over-year comparison
+        self.config.growth_periods
     }
 
     fn frequency(&self) -> DataFrequency {
@@ -72,24 +89,36 @@ impl Factor for BookEquityGrowth {
             )
             .collect()?;
 
-        // Compute year-over-year growth: (Book Equity_t / Book Equity_{t-4}) - 1
+        // Compute growth: (Book Equity_t / Book Equity_{t-n}) - 1
+        let lag_alias = format!("book_equity_lag{}", self.config.growth_periods);
         let result = sorted
             .lazy()
             .with_column(
                 col("book_equity")
-                    .shift(lit(4))
+                    .shift(lit(self.config.growth_periods as i64))
                     .over([col("symbol")])
-                    .alias("book_equity_lag4"),
+                    .alias(&lag_alias),
             )
             .filter(col("date").eq(lit(date.to_string())))
             .with_column(
-                ((col("book_equity") / col("book_equity_lag4")) - lit(1.0))
-                    .alias("book_equity_growth"),
+                ((col("book_equity") / col(&lag_alias)) - lit(1.0)).alias("book_equity_growth"),
             )
             .select([col("symbol"), col("date"), col("book_equity_growth")])
             .collect()?;
 
         Ok(result)
+    }
+}
+
+impl ConfigurableFactor for BookEquityGrowth {
+    type Config = BookEquityGrowthConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
     }
 }
 
@@ -110,7 +139,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = BookEquityGrowth;
+        let factor = BookEquityGrowth::default();
         let result = factor
             .compute_raw(&df.lazy(), NaiveDate::from_ymd_opt(2024, 1, 1).unwrap())
             .unwrap();
@@ -127,7 +156,7 @@ mod tests {
 
     #[test]
     fn test_book_equity_growth_metadata() {
-        let factor = BookEquityGrowth;
+        let factor = BookEquityGrowth::default();
         assert_eq!(factor.name(), "book_equity_growth");
         assert_eq!(factor.category(), FactorCategory::Growth);
         assert_eq!(factor.lookback(), 4);
@@ -148,7 +177,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = BookEquityGrowth;
+        let factor = BookEquityGrowth::default();
         let result = factor
             .compute_raw(&df.lazy(), NaiveDate::from_ymd_opt(2024, 1, 1).unwrap())
             .unwrap();

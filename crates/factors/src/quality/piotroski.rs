@@ -6,10 +6,14 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+
+/// Configuration for Piotroski F-Score factor.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct PiotroskiConfig {}
 
 /// Piotroski F-Score factor.
 ///
@@ -32,7 +36,9 @@ use polars::prelude::*;
 ///
 /// Higher scores (7-9) indicate strong fundamentals, while lower scores (0-2) suggest weakness.
 #[derive(Debug, Clone, Default)]
-pub struct Piotroski;
+pub struct Piotroski {
+    config: PiotroskiConfig,
+}
 
 impl Factor for Piotroski {
     fn name(&self) -> &str {
@@ -106,13 +112,25 @@ impl Factor for Piotroski {
     }
 }
 
+impl ConfigurableFactor for Piotroski {
+    type Config = PiotroskiConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_piotroski_metadata() {
-        let factor = Piotroski;
+        let factor = Piotroski::default();
         assert_eq!(factor.name(), "piotroski_f_score");
         assert_eq!(factor.lookback(), 2);
         assert_eq!(factor.frequency(), DataFrequency::Quarterly);
@@ -143,7 +161,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = Piotroski;
+        let factor = Piotroski::default();
         let result = factor
             .compute_raw(&df.lazy(), NaiveDate::from_ymd_opt(2024, 3, 31).unwrap())
             .unwrap();
@@ -177,7 +195,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = Piotroski;
+        let factor = Piotroski::default();
         let result = factor
             .compute_raw(&df.lazy(), NaiveDate::from_ymd_opt(2024, 3, 31).unwrap())
             .unwrap();
@@ -211,7 +229,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = Piotroski;
+        let factor = Piotroski::default();
         let result = factor
             .compute_raw(&df.lazy(), NaiveDate::from_ymd_opt(2024, 3, 31).unwrap())
             .unwrap();

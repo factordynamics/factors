@@ -3,20 +3,33 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
 
+/// Configuration for RSI factor.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct RSIConfig {
+    /// Lookback period in days (default: 14)
+    pub period: usize,
+}
+
+impl Default for RSIConfig {
+    fn default() -> Self {
+        Self { period: 14 }
+    }
+}
+
 /// RSI factor measuring momentum strength on a 0-100 scale.
 ///
 /// The Relative Strength Index (RSI) is calculated as:
-/// `RSI_14 = 100 - (100 / (1 + RS))`
+/// `RSI = 100 - (100 / (1 + RS))`
 ///
 /// where:
-/// - `RS = avg_gain / avg_loss` over 14 days
-/// - `avg_gain` is the average of price increases over 14 days
-/// - `avg_loss` is the average of price decreases over 14 days
+/// - `RS = avg_gain / avg_loss` over the period
+/// - `avg_gain` is the average of price increases over the period
+/// - `avg_loss` is the average of price decreases over the period
 ///
 /// RSI values range from 0 to 100:
 /// - Above 70 typically indicates overbought conditions
@@ -25,7 +38,9 @@ use polars::prelude::*;
 ///
 /// Captures short-term momentum and potential reversal points.
 #[derive(Debug, Clone, Default)]
-pub struct RSI;
+pub struct RSI {
+    config: RSIConfig,
+}
 
 impl Factor for RSI {
     fn name(&self) -> &str {
@@ -45,7 +60,7 @@ impl Factor for RSI {
     }
 
     fn lookback(&self) -> usize {
-        14
+        self.config.period
     }
 
     fn frequency(&self) -> DataFrequency {
@@ -133,6 +148,18 @@ impl Factor for RSI {
     }
 }
 
+impl ConfigurableFactor for RSI {
+    type Config = RSIConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -140,7 +167,7 @@ mod tests {
 
     #[test]
     fn test_rsi_trending_up() {
-        let factor = RSI;
+        let factor = RSI::default();
 
         // Create test data with 15 days of consistently rising prices
         let dates: Vec<String> = (0..15)
@@ -184,7 +211,7 @@ mod tests {
 
     #[test]
     fn test_rsi_mixed_movements() {
-        let factor = RSI;
+        let factor = RSI::default();
 
         // Create test data with mixed price movements
         let dates: Vec<String> = (0..20)
@@ -229,7 +256,7 @@ mod tests {
 
     #[test]
     fn test_rsi_metadata() {
-        let factor = RSI;
+        let factor = RSI::default();
 
         assert_eq!(factor.name(), "rsi");
         assert_eq!(factor.category(), FactorCategory::Momentum);

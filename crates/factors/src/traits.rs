@@ -61,3 +61,26 @@ pub trait Factor: Send + Sync + std::fmt::Debug {
         crate::cross_sectional_standardize(&raw, self.name())
     }
 }
+
+/// Marker trait for factor configuration types.
+///
+/// All config types should implement Default, Clone, Send, Sync, and Debug.
+pub trait FactorConfig: Default + Clone + Send + Sync + std::fmt::Debug {}
+
+/// A factor that supports runtime configuration.
+///
+/// This trait extends `Factor` to allow customization of lookback windows,
+/// skip periods, and other parameters.
+pub trait ConfigurableFactor: Factor {
+    /// Configuration type for this factor.
+    type Config: FactorConfig;
+
+    /// Create a new factor with the given configuration.
+    fn with_config(config: Self::Config) -> Self;
+
+    /// Returns the current configuration.
+    fn config(&self) -> &Self::Config;
+}
+
+/// Blanket implementation for any type that satisfies the trait bounds.
+impl<T: Default + Clone + Send + Sync + std::fmt::Debug> FactorConfig for T {}

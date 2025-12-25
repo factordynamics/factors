@@ -13,10 +13,27 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+use serde::{Deserialize, Serialize};
+
+/// Configuration for the Institutional Ownership factor.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct InstitutionalOwnershipConfig {
+    /// Number of quarters to look back for ownership comparison.
+    /// Default is 1 (quarter-over-quarter change).
+    pub lookback_quarters: usize,
+}
+
+impl Default for InstitutionalOwnershipConfig {
+    fn default() -> Self {
+        Self {
+            lookback_quarters: 1,
+        }
+    }
+}
 
 /// Institutional Ownership Change factor.
 ///
@@ -45,7 +62,9 @@ use polars::prelude::*;
 /// - Large cap stocks tend to have higher institutional ownership
 /// - Extreme values may indicate index inclusion/exclusion events
 #[derive(Debug, Clone, Default)]
-pub struct InstitutionalOwnership;
+pub struct InstitutionalOwnership {
+    config: InstitutionalOwnershipConfig,
+}
 
 impl Factor for InstitutionalOwnership {
     fn name(&self) -> &str {
@@ -65,7 +84,7 @@ impl Factor for InstitutionalOwnership {
     }
 
     fn lookback(&self) -> usize {
-        1 // Need 1 prior quarter
+        self.config.lookback_quarters
     }
 
     fn frequency(&self) -> DataFrequency {
@@ -92,7 +111,8 @@ impl Factor for InstitutionalOwnership {
                 col("institutional_ownership")
                     .sort_by([col("date")], Default::default())
                     .slice(
-                        (lit(0) - lit(self.lookback() as i64 + 1)).cast(DataType::Int64),
+                        (lit(0) - lit(self.config.lookback_quarters as i64 + 1))
+                            .cast(DataType::Int64),
                         lit(1u32),
                     )
                     .first()
@@ -111,6 +131,18 @@ impl Factor for InstitutionalOwnership {
     }
 }
 
+impl ConfigurableFactor for InstitutionalOwnership {
+    type Config = InstitutionalOwnershipConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -118,7 +150,7 @@ mod tests {
 
     #[test]
     fn test_institutional_ownership_increase() {
-        let factor = InstitutionalOwnership;
+        let factor = InstitutionalOwnership::default();
 
         // Create test data with increasing ownership from 60% to 65%
         let df = df! {
@@ -153,7 +185,7 @@ mod tests {
 
     #[test]
     fn test_institutional_ownership_decrease() {
-        let factor = InstitutionalOwnership;
+        let factor = InstitutionalOwnership::default();
 
         // Create test data with decreasing ownership from 70% to 65%
         let df = df! {
@@ -187,7 +219,7 @@ mod tests {
 
     #[test]
     fn test_institutional_ownership_multiple_stocks() {
-        let factor = InstitutionalOwnership;
+        let factor = InstitutionalOwnership::default();
 
         // Create test data for multiple stocks
         let df = df! {
@@ -246,7 +278,7 @@ mod tests {
 
     #[test]
     fn test_institutional_ownership_metadata() {
-        let factor = InstitutionalOwnership;
+        let factor = InstitutionalOwnership::default();
 
         assert_eq!(factor.name(), "institutional_ownership_change");
         assert_eq!(factor.category(), FactorCategory::Sentiment);
@@ -260,7 +292,7 @@ mod tests {
 
     #[test]
     fn test_institutional_ownership_single_quarter() {
-        let factor = InstitutionalOwnership;
+        let factor = InstitutionalOwnership::default();
 
         // Create test data with only one quarter (insufficient for change calculation)
         let df = df! {
@@ -280,7 +312,7 @@ mod tests {
 
     #[test]
     fn test_institutional_ownership_multiple_quarters() {
-        let factor = InstitutionalOwnership;
+        let factor = InstitutionalOwnership::default();
 
         // Create test data with 4 quarters - should use most recent change
         let df = df! {

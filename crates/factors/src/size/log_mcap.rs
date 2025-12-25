@@ -7,10 +7,17 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+
+/// Configuration for log market capitalization factor.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct LogMarketCapConfig {
+    // Empty for now - size factors typically don't need configuration
+    // This struct exists for consistency and future extensibility
+}
 
 /// Log market capitalization factor.
 ///
@@ -48,7 +55,9 @@ use polars::prelude::*;
 /// let result = factor.compute(&data, date)?;
 /// ```
 #[derive(Debug, Clone, Copy, Default)]
-pub struct LogMarketCap;
+pub struct LogMarketCap {
+    config: LogMarketCapConfig,
+}
 
 impl Factor for LogMarketCap {
     fn name(&self) -> &str {
@@ -94,6 +103,18 @@ impl Factor for LogMarketCap {
     }
 }
 
+impl ConfigurableFactor for LogMarketCap {
+    type Config = LogMarketCapConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -110,7 +131,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = LogMarketCap;
+        let factor = LogMarketCap::default();
         let date = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
         let result = factor.compute_raw(&df.lazy(), date).unwrap();
 
@@ -168,7 +189,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = LogMarketCap;
+        let factor = LogMarketCap::default();
         let date = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
         let result = factor.compute_raw(&df.lazy(), date).unwrap();
 
@@ -189,7 +210,7 @@ mod tests {
 
     #[test]
     fn test_log_market_cap_trait_properties() {
-        let factor = LogMarketCap;
+        let factor = LogMarketCap::default();
 
         assert_eq!(factor.name(), "log_market_cap");
         assert_eq!(
@@ -215,7 +236,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = LogMarketCap;
+        let factor = LogMarketCap::default();
         let date = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
         let result = factor.compute_raw(&df.lazy(), date).unwrap();
 

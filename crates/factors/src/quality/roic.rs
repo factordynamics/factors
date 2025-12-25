@@ -6,10 +6,14 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+
+/// Configuration for Return on Invested Capital factor.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct RoicConfig {}
 
 /// Return on Invested Capital factor.
 ///
@@ -22,7 +26,9 @@ use polars::prelude::*;
 /// This factor measures how well a company generates profits from its invested capital,
 /// providing insight into capital allocation efficiency.
 #[derive(Debug, Clone, Default)]
-pub struct Roic;
+pub struct Roic {
+    config: RoicConfig,
+}
 
 impl Factor for Roic {
     fn name(&self) -> &str {
@@ -72,13 +78,25 @@ impl Factor for Roic {
     }
 }
 
+impl ConfigurableFactor for Roic {
+    type Config = RoicConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_roic_metadata() {
-        let factor = Roic;
+        let factor = Roic::default();
         assert_eq!(factor.name(), "roic");
         assert_eq!(factor.lookback(), 1);
         assert_eq!(factor.frequency(), DataFrequency::Quarterly);
@@ -96,7 +114,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = Roic;
+        let factor = Roic::default();
         let result = factor
             .compute_raw(&df.lazy(), NaiveDate::from_ymd_opt(2024, 3, 31).unwrap())
             .unwrap();

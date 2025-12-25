@@ -3,19 +3,39 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
 
+/// Configuration for medium-term momentum factor.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct MediumTermMomentumConfig {
+    /// Number of trading days to look back (default: 126)
+    pub lookback: usize,
+    /// Number of recent days to skip to avoid reversal effects (default: 21)
+    pub skip_days: usize,
+}
+
+impl Default for MediumTermMomentumConfig {
+    fn default() -> Self {
+        Self {
+            lookback: 126,
+            skip_days: 21,
+        }
+    }
+}
+
 /// Medium-term momentum factor measuring 6-month (126 trading days) price change.
 ///
 /// Measures the percentage price change over the past 6 months:
-/// `(P_t / P_{t-126}) - 1`
+/// `(P_{t-skip} / P_{t-lookback-skip}) - 1`
 ///
 /// where:
-/// - `P_t` is the current price
-/// - `P_{t-126}` is the price 126 trading days ago (approximately 6 months)
+/// - `P_{t-skip}` is the price after skipping recent days
+/// - `P_{t-lookback-skip}` is the price from lookback + skip days ago
+///
+/// The skip period helps avoid short-term reversal effects.
 ///
 /// Captures medium-term trend persistence, useful for:
 /// - Traditional momentum strategies
@@ -26,7 +46,9 @@ use polars::prelude::*;
 /// with stability, avoiding very short-term noise and capturing
 /// established trends.
 #[derive(Debug, Clone, Default)]
-pub struct MediumTermMomentum;
+pub struct MediumTermMomentum {
+    config: MediumTermMomentumConfig,
+}
 
 impl Factor for MediumTermMomentum {
     fn name(&self) -> &str {
@@ -46,7 +68,7 @@ impl Factor for MediumTermMomentum {
     }
 
     fn lookback(&self) -> usize {
-        126
+        self.config.lookback
     }
 
     fn frequency(&self) -> DataFrequency {
@@ -60,20 +82,29 @@ impl Factor for MediumTermMomentum {
             .filter(col("date").lt_eq(lit(date.format("%Y-%m-%d").to_string())))
             .collect()?;
 
-        // Group by symbol and compute momentum
+        let skip_days = self.config.skip_days;
+        let lookback = self.config.lookback;
+
+        // Group by symbol and compute momentum with skip period
         let result = filtered
             .lazy()
             .group_by([col("symbol")])
             .agg([
                 col("date").sort(Default::default()).last().alias("date"),
-                col("close")
-                    .sort_by([col("date")], Default::default())
-                    .last()
-                    .alias("current_price"),
+                // Price from skip_days ago
                 col("close")
                     .sort_by([col("date")], Default::default())
                     .slice(
-                        (lit(0) - lit(self.lookback() as i64 + 1)).cast(DataType::Int64),
+                        (lit(0) - lit(skip_days as i64 + 1)).cast(DataType::Int64),
+                        lit(1u32),
+                    )
+                    .first()
+                    .alias("current_price"),
+                // Price from lookback + skip_days ago
+                col("close")
+                    .sort_by([col("date")], Default::default())
+                    .slice(
+                        (lit(0) - lit((lookback + skip_days) as i64 + 1)).cast(DataType::Int64),
                         lit(1u32),
                     )
                     .first()
@@ -90,6 +121,18 @@ impl Factor for MediumTermMomentum {
     }
 }
 
+impl ConfigurableFactor for MediumTermMomentum {
+    type Config = MediumTermMomentumConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -97,10 +140,10 @@ mod tests {
 
     #[test]
     fn test_medium_term_momentum_basic() {
-        let factor = MediumTermMomentum;
+        let factor = MediumTermMomentum::default();
 
-        // Create test data with 127 days of prices
-        let dates: Vec<String> = (0..127)
+        // Create test data with 148 days of prices (lookback 126 + skip 21 + 1)
+        let dates: Vec<String> = (0..148)
             .map(|i| {
                 NaiveDate::from_ymd_opt(2024, 1, 1)
                     .unwrap()
@@ -111,9 +154,12 @@ mod tests {
             })
             .collect();
 
-        let symbols = vec!["AAPL"; 127];
+        let symbols = vec!["AAPL"; 148];
         // Price goes from 100 to 125 (25% gain)
-        let prices: Vec<f64> = (0..127).map(|i| 100.0 + i as f64 * 0.1984).collect();
+        // At t-147 (index 0): price = 100.0
+        // At t-21 (index 126): price = 100.0 + 126 * 0.1984 = 125.0
+        // Momentum = (125.0 / 100.0) - 1 = 0.25 (25%)
+        let prices: Vec<f64> = (0..148).map(|i| 100.0 + i as f64 * 0.1984).collect();
 
         let df = df! {
             "symbol" => symbols,
@@ -123,7 +169,7 @@ mod tests {
         .unwrap();
 
         let result = factor
-            .compute_raw(&df.lazy(), NaiveDate::from_ymd_opt(2024, 5, 7).unwrap())
+            .compute_raw(&df.lazy(), NaiveDate::from_ymd_opt(2024, 5, 28).unwrap())
             .unwrap();
 
         assert_eq!(result.height(), 1);
@@ -147,7 +193,7 @@ mod tests {
 
     #[test]
     fn test_medium_term_momentum_metadata() {
-        let factor = MediumTermMomentum;
+        let factor = MediumTermMomentum::default();
 
         assert_eq!(factor.name(), "medium_term_momentum");
         assert_eq!(factor.category(), FactorCategory::Momentum);

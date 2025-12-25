@@ -6,10 +6,11 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+use serde::{Deserialize, Serialize};
 
 /// Roll's measure of effective spread.
 ///
@@ -39,20 +40,50 @@ use polars::prelude::*;
 ///
 /// - Roll, R. (1984). "A simple implicit measure of the effective bid-ask spread
 ///   in an efficient market," Journal of Finance 39(4), 1127-1139.
+///
+/// Configuration for RollMeasure factor.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RollMeasureConfig {
+    /// Number of days for covariance calculation.
+    pub lookback: usize,
+    /// Minimum number of periods required for valid calculation.
+    pub min_periods: usize,
+}
+
+impl Default for RollMeasureConfig {
+    fn default() -> Self {
+        Self {
+            lookback: 20,
+            min_periods: 20,
+        }
+    }
+}
+
+/// Roll's spread measure factor implementation.
 #[derive(Debug, Clone)]
 pub struct RollMeasure {
-    lookback: usize,
+    config: RollMeasureConfig,
 }
 
 impl RollMeasure {
     /// Creates a new RollMeasure factor with default 20-day lookback.
     pub const fn new() -> Self {
-        Self { lookback: 20 }
+        Self {
+            config: RollMeasureConfig {
+                lookback: 20,
+                min_periods: 20,
+            },
+        }
     }
 
     /// Creates a RollMeasure factor with a custom lookback period.
     pub const fn with_lookback(lookback: usize) -> Self {
-        Self { lookback }
+        Self {
+            config: RollMeasureConfig {
+                lookback,
+                min_periods: lookback,
+            },
+        }
     }
 }
 
@@ -80,7 +111,7 @@ impl Factor for RollMeasure {
     }
 
     fn lookback(&self) -> usize {
-        self.lookback
+        self.config.lookback
     }
 
     fn frequency(&self) -> DataFrequency {
@@ -117,8 +148,8 @@ impl Factor for RollMeasure {
             .with_column(
                 col("price_change_product")
                     .rolling_mean(RollingOptionsFixedWindow {
-                        window_size: self.lookback,
-                        min_periods: self.lookback,
+                        window_size: self.config.lookback,
+                        min_periods: self.config.min_periods,
                         ..Default::default()
                     })
                     .over([col("symbol")])
@@ -127,8 +158,8 @@ impl Factor for RollMeasure {
             .with_column(
                 col("price_change")
                     .rolling_mean(RollingOptionsFixedWindow {
-                        window_size: self.lookback,
-                        min_periods: self.lookback,
+                        window_size: self.config.lookback,
+                        min_periods: self.config.min_periods,
                         ..Default::default()
                     })
                     .over([col("symbol")])
@@ -137,8 +168,8 @@ impl Factor for RollMeasure {
             .with_column(
                 col("price_change_lag1")
                     .rolling_mean(RollingOptionsFixedWindow {
-                        window_size: self.lookback,
-                        min_periods: self.lookback,
+                        window_size: self.config.lookback,
+                        min_periods: self.config.min_periods,
                         ..Default::default()
                     })
                     .over([col("symbol")])
@@ -163,6 +194,18 @@ impl Factor for RollMeasure {
             .collect()?;
 
         Ok(result)
+    }
+}
+
+impl ConfigurableFactor for RollMeasure {
+    type Config = RollMeasureConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
     }
 }
 

@@ -6,10 +6,17 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+
+/// Configuration for market capitalization factor.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct MarketCapConfig {
+    // Empty for now - size factors typically don't need configuration
+    // This struct exists for consistency and future extensibility
+}
 
 /// Market capitalization factor.
 ///
@@ -46,7 +53,9 @@ use polars::prelude::*;
 /// let result = factor.compute(&data, date)?;
 /// ```
 #[derive(Debug, Clone, Copy, Default)]
-pub struct MarketCap;
+pub struct MarketCap {
+    config: MarketCapConfig,
+}
 
 impl Factor for MarketCap {
     fn name(&self) -> &str {
@@ -90,6 +99,18 @@ impl Factor for MarketCap {
     }
 }
 
+impl ConfigurableFactor for MarketCap {
+    type Config = MarketCapConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -106,7 +127,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = MarketCap;
+        let factor = MarketCap::default();
         let date = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
         let result = factor.compute_raw(&df.lazy(), date).unwrap();
 
@@ -152,7 +173,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = MarketCap;
+        let factor = MarketCap::default();
         let date = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
         let result = factor.compute_raw(&df.lazy(), date).unwrap();
 
@@ -173,7 +194,7 @@ mod tests {
 
     #[test]
     fn test_market_cap_trait_properties() {
-        let factor = MarketCap;
+        let factor = MarketCap::default();
 
         assert_eq!(factor.name(), "market_cap");
         assert_eq!(
@@ -199,7 +220,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = MarketCap;
+        let factor = MarketCap::default();
         let date = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
         let result = factor.compute_raw(&df.lazy(), date).unwrap();
 

@@ -6,10 +6,20 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+
+/// Configuration for EBITDA-to-EV factor.
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+pub struct EbitdaToEvConfig;
+
+impl Default for EbitdaToEvConfig {
+    fn default() -> Self {
+        Self
+    }
+}
 
 /// EBITDA-to-EV value factor.
 ///
@@ -47,8 +57,18 @@ use polars::prelude::*;
 ///
 /// let result = factor.compute(&data, NaiveDate::from_ymd_opt(2024, 3, 31).unwrap())?;
 /// ```
-#[derive(Debug, Clone, Copy, Default)]
-pub struct EbitdaToEv;
+#[derive(Debug, Clone, Copy)]
+pub struct EbitdaToEv {
+    config: EbitdaToEvConfig,
+}
+
+impl Default for EbitdaToEv {
+    fn default() -> Self {
+        Self {
+            config: EbitdaToEvConfig,
+        }
+    }
+}
 
 impl Factor for EbitdaToEv {
     fn name(&self) -> &str {
@@ -90,6 +110,18 @@ impl Factor for EbitdaToEv {
     }
 }
 
+impl ConfigurableFactor for EbitdaToEv {
+    type Config = EbitdaToEvConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -105,7 +137,7 @@ mod tests {
         .unwrap()
         .lazy();
 
-        let factor = EbitdaToEv;
+        let factor = EbitdaToEv::default();
         let date = NaiveDate::from_ymd_opt(2024, 3, 31).unwrap();
         let result = factor.compute_raw(&data, date).unwrap();
 
@@ -120,7 +152,7 @@ mod tests {
 
     #[test]
     fn test_ebitda_to_ev_metadata() {
-        let factor = EbitdaToEv;
+        let factor = EbitdaToEv::default();
         assert_eq!(factor.name(), "ebitda_to_ev");
         assert_eq!(factor.category(), FactorCategory::Value);
         assert_eq!(factor.lookback(), 1);
@@ -138,7 +170,7 @@ mod tests {
         .unwrap()
         .lazy();
 
-        let factor = EbitdaToEv;
+        let factor = EbitdaToEv::default();
         let date = NaiveDate::from_ymd_opt(2024, 3, 31).unwrap();
         let result = factor.compute_raw(&data, date).unwrap();
 

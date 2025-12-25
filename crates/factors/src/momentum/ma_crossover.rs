@@ -3,23 +3,41 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
 
-/// Moving average crossover factor - 50-day vs 200-day SMA ratio.
+/// Configuration for moving average crossover factor.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct MACrossoverConfig {
+    /// Short-term moving average window in days (default: 50)
+    pub short_window: usize,
+    /// Long-term moving average window in days (default: 200)
+    pub long_window: usize,
+}
+
+impl Default for MACrossoverConfig {
+    fn default() -> Self {
+        Self {
+            short_window: 50,
+            long_window: 200,
+        }
+    }
+}
+
+/// Moving average crossover factor - short vs long SMA ratio.
 ///
 /// Measures the relationship between short and long-term moving averages:
-/// `SMA_50 / SMA_200 - 1`
+/// `SMA_short / SMA_long - 1`
 ///
 /// where:
-/// - `SMA_50` is the 50-day simple moving average
-/// - `SMA_200` is the 200-day simple moving average
+/// - `SMA_short` is the short-term simple moving average (default: 50-day)
+/// - `SMA_long` is the long-term simple moving average (default: 200-day)
 ///
 /// This is a classic technical indicator that captures:
-/// - Golden cross: When SMA_50 crosses above SMA_200 (positive signal)
-/// - Death cross: When SMA_50 crosses below SMA_200 (negative signal)
+/// - Golden cross: When SMA_short crosses above SMA_long (positive signal)
+/// - Death cross: When SMA_short crosses below SMA_long (negative signal)
 ///
 /// Useful for:
 /// - Trend identification
@@ -29,7 +47,9 @@ use polars::prelude::*;
 /// Positive values indicate short-term strength relative to long-term average.
 /// Negative values indicate short-term weakness relative to long-term average.
 #[derive(Debug, Clone, Default)]
-pub struct MACrossover;
+pub struct MACrossover {
+    config: MACrossoverConfig,
+}
 
 impl Factor for MACrossover {
     fn name(&self) -> &str {
@@ -49,7 +69,7 @@ impl Factor for MACrossover {
     }
 
     fn lookback(&self) -> usize {
-        200
+        self.config.long_window
     }
 
     fn frequency(&self) -> DataFrequency {
@@ -63,31 +83,46 @@ impl Factor for MACrossover {
             .filter(col("date").lt_eq(lit(date.format("%Y-%m-%d").to_string())))
             .collect()?;
 
+        let short_window = self.config.short_window;
+        let long_window = self.config.long_window;
+
         // Group by symbol and compute MA crossover
         let result = filtered
             .lazy()
             .group_by([col("symbol")])
             .agg([
                 col("date").sort(Default::default()).last().alias("date"),
-                // 50-day SMA: average of last 50 prices
+                // Short-term SMA: average of last N prices
                 col("close")
                     .sort_by([col("date")], Default::default())
-                    .tail(Some(50))
+                    .tail(Some(short_window))
                     .mean()
-                    .alias("sma_50"),
-                // 200-day SMA: average of last 200 prices
+                    .alias("sma_short"),
+                // Long-term SMA: average of last N prices
                 col("close")
                     .sort_by([col("date")], Default::default())
-                    .tail(Some(200))
+                    .tail(Some(long_window))
                     .mean()
-                    .alias("sma_200"),
+                    .alias("sma_long"),
             ])
-            .with_column(((col("sma_50") / col("sma_200")) - lit(1.0)).alias(self.name()))
+            .with_column(((col("sma_short") / col("sma_long")) - lit(1.0)).alias(self.name()))
             .select([col("symbol"), col("date"), col(self.name())])
             .filter(col(self.name()).is_not_null())
             .collect()?;
 
         Ok(result)
+    }
+}
+
+impl ConfigurableFactor for MACrossover {
+    type Config = MACrossoverConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
     }
 }
 
@@ -98,7 +133,7 @@ mod tests {
 
     #[test]
     fn test_ma_crossover_basic() {
-        let factor = MACrossover;
+        let factor = MACrossover::default();
 
         // Create test data with 200 days of prices
         let dates: Vec<String> = (0..200)
@@ -149,7 +184,7 @@ mod tests {
 
     #[test]
     fn test_ma_crossover_metadata() {
-        let factor = MACrossover;
+        let factor = MACrossover::default();
 
         assert_eq!(factor.name(), "ma_crossover");
         assert_eq!(factor.category(), FactorCategory::Momentum);

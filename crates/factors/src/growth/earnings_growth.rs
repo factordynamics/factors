@@ -9,10 +9,25 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+use serde::{Deserialize, Serialize};
+
+/// Configuration for the Earnings Growth factor.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EarningsGrowthConfig {
+    /// Number of quarters to look back for growth calculation.
+    /// Default is 4 (year-over-year). Use 2 for semi-annual, 8 for 2-year growth.
+    pub growth_periods: usize,
+}
+
+impl Default for EarningsGrowthConfig {
+    fn default() -> Self {
+        Self { growth_periods: 4 }
+    }
+}
 
 /// Earnings growth factor - year-over-year EPS growth rate.
 ///
@@ -27,7 +42,9 @@ use polars::prelude::*;
 /// # Returns
 /// DataFrame with columns: `symbol`, `date`, `earnings_growth`
 #[derive(Debug, Clone, Default)]
-pub struct EarningsGrowth;
+pub struct EarningsGrowth {
+    config: EarningsGrowthConfig,
+}
 
 impl Factor for EarningsGrowth {
     fn name(&self) -> &str {
@@ -47,7 +64,7 @@ impl Factor for EarningsGrowth {
     }
 
     fn lookback(&self) -> usize {
-        4 // 4 quarters for year-over-year comparison
+        self.config.growth_periods
     }
 
     fn frequency(&self) -> DataFrequency {
@@ -72,21 +89,34 @@ impl Factor for EarningsGrowth {
             )
             .collect()?;
 
-        // Compute year-over-year growth: (EPS_t / EPS_{t-4}) - 1
+        // Compute growth: (EPS_t / EPS_{t-n}) - 1
+        let lag_alias = format!("eps_lag{}", self.config.growth_periods);
         let result = sorted
             .lazy()
             .with_column(
                 col("eps")
-                    .shift(lit(4))
+                    .shift(lit(self.config.growth_periods as i64))
                     .over([col("symbol")])
-                    .alias("eps_lag4"),
+                    .alias(&lag_alias),
             )
             .filter(col("date").eq(lit(date.to_string())))
-            .with_column(((col("eps") / col("eps_lag4")) - lit(1.0)).alias("earnings_growth"))
+            .with_column(((col("eps") / col(&lag_alias)) - lit(1.0)).alias("earnings_growth"))
             .select([col("symbol"), col("date"), col("earnings_growth")])
             .collect()?;
 
         Ok(result)
+    }
+}
+
+impl ConfigurableFactor for EarningsGrowth {
+    type Config = EarningsGrowthConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
     }
 }
 
@@ -107,7 +137,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = EarningsGrowth;
+        let factor = EarningsGrowth::default();
         let result = factor
             .compute_raw(&df.lazy(), NaiveDate::from_ymd_opt(2024, 1, 1).unwrap())
             .unwrap();
@@ -124,11 +154,33 @@ mod tests {
 
     #[test]
     fn test_earnings_growth_metadata() {
-        let factor = EarningsGrowth;
+        let factor = EarningsGrowth::default();
         assert_eq!(factor.name(), "earnings_growth");
         assert_eq!(factor.category(), FactorCategory::Growth);
         assert_eq!(factor.lookback(), 4);
         assert_eq!(factor.frequency(), DataFrequency::Quarterly);
         assert_eq!(factor.required_columns(), &["symbol", "date", "eps"]);
+    }
+
+    #[test]
+    fn test_earnings_growth_custom_period() {
+        // Test with 2-quarter (semi-annual) growth
+        let df = df![
+            "symbol" => ["AAPL", "AAPL", "AAPL"],
+            "date" => ["2023-07-01", "2023-10-01", "2024-01-01"],
+            "eps" => [1.0, 1.1, 1.2]
+        ]
+        .unwrap();
+
+        let config = EarningsGrowthConfig { growth_periods: 2 };
+        let factor = EarningsGrowth::with_config(config);
+        let result = factor
+            .compute_raw(&df.lazy(), NaiveDate::from_ymd_opt(2024, 1, 1).unwrap())
+            .unwrap();
+
+        // (1.2 / 1.0) - 1 = 0.2 (20% growth over 2 quarters)
+        assert_eq!(result.height(), 1);
+        let growth = result.column("earnings_growth").unwrap().f64().unwrap();
+        assert!((growth.get(0).unwrap() - 0.2).abs() < 0.01);
     }
 }

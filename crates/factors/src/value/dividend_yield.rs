@@ -6,10 +6,20 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+
+/// Configuration for dividend yield factor.
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+pub struct DividendYieldConfig;
+
+impl Default for DividendYieldConfig {
+    fn default() -> Self {
+        Self
+    }
+}
 
 /// Dividend yield value factor.
 ///
@@ -47,8 +57,18 @@ use polars::prelude::*;
 ///
 /// let result = factor.compute(&data, NaiveDate::from_ymd_opt(2024, 3, 31).unwrap())?;
 /// ```
-#[derive(Debug, Clone, Copy, Default)]
-pub struct DividendYield;
+#[derive(Debug, Clone, Copy)]
+pub struct DividendYield {
+    config: DividendYieldConfig,
+}
+
+impl Default for DividendYield {
+    fn default() -> Self {
+        Self {
+            config: DividendYieldConfig,
+        }
+    }
+}
 
 impl Factor for DividendYield {
     fn name(&self) -> &str {
@@ -90,6 +110,18 @@ impl Factor for DividendYield {
     }
 }
 
+impl ConfigurableFactor for DividendYield {
+    type Config = DividendYieldConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -105,7 +137,7 @@ mod tests {
         .unwrap()
         .lazy();
 
-        let factor = DividendYield;
+        let factor = DividendYield::default();
         let date = NaiveDate::from_ymd_opt(2024, 3, 31).unwrap();
         let result = factor.compute_raw(&data, date).unwrap();
 
@@ -120,7 +152,7 @@ mod tests {
 
     #[test]
     fn test_dividend_yield_metadata() {
-        let factor = DividendYield;
+        let factor = DividendYield::default();
         assert_eq!(factor.name(), "dividend_yield");
         assert_eq!(factor.category(), FactorCategory::Value);
         assert_eq!(factor.lookback(), 1);
@@ -138,7 +170,7 @@ mod tests {
         .unwrap()
         .lazy();
 
-        let factor = DividendYield;
+        let factor = DividendYield::default();
         let date = NaiveDate::from_ymd_opt(2024, 3, 31).unwrap();
         let result = factor.compute_raw(&data, date).unwrap();
 

@@ -13,14 +13,29 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+use serde::{Deserialize, Serialize};
+
+/// Configuration for the Insider Trading factor.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InsiderTradingConfig {
+    /// Number of days to look back for insider trading activity.
+    /// Default is 63 (approximately 3 months). Use 21 for 1-month, 126 for 6-month windows.
+    pub lookback_days: usize,
+}
+
+impl Default for InsiderTradingConfig {
+    fn default() -> Self {
+        Self { lookback_days: 63 }
+    }
+}
 
 /// Insider Trading factor based on net insider buying activity.
 ///
-/// Computes the net insider buying ratio over the past 3 months:
+/// Computes the net insider buying ratio over a configurable lookback period:
 /// `(Insider Buys - Insider Sells) / (Buys + Sells)`
 ///
 /// where:
@@ -39,7 +54,7 @@ use polars::prelude::*;
 /// - `insider_sells`: Number or value of insider sell transactions
 ///
 /// # Lookback Period
-/// 63 trading days (approximately 3 months)
+/// Configurable via `lookback_days` (default: 63 trading days)
 ///
 /// # Usage Notes
 /// - Insider buys are stronger signals than sells
@@ -47,7 +62,9 @@ use polars::prelude::*;
 /// - Cluster of buys from multiple insiders is particularly bullish
 /// - Large single transactions are more meaningful than small ones
 #[derive(Debug, Clone, Default)]
-pub struct InsiderTrading;
+pub struct InsiderTrading {
+    config: InsiderTradingConfig,
+}
 
 impl Factor for InsiderTrading {
     fn name(&self) -> &str {
@@ -67,7 +84,7 @@ impl Factor for InsiderTrading {
     }
 
     fn lookback(&self) -> usize {
-        63 // Approximately 3 months of trading days
+        self.config.lookback_days
     }
 
     fn frequency(&self) -> DataFrequency {
@@ -75,9 +92,9 @@ impl Factor for InsiderTrading {
     }
 
     fn compute_raw(&self, data: &LazyFrame, date: NaiveDate) -> Result<DataFrame> {
-        // Calculate the lookback date (3 months ago)
+        // Calculate the lookback date
         let lookback_date = date
-            .checked_sub_days(chrono::Days::new(self.lookback() as u64))
+            .checked_sub_days(chrono::Days::new(self.config.lookback_days as u64))
             .unwrap_or(date);
 
         // Filter data for the lookback window
@@ -114,6 +131,18 @@ impl Factor for InsiderTrading {
     }
 }
 
+impl ConfigurableFactor for InsiderTrading {
+    type Config = InsiderTradingConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -121,7 +150,7 @@ mod tests {
 
     #[test]
     fn test_insider_trading_net_buying() {
-        let factor = InsiderTrading;
+        let factor = InsiderTrading::default();
 
         // Create test data with more buys than sells
         let dates: Vec<String> = (0..10)
@@ -173,7 +202,7 @@ mod tests {
 
     #[test]
     fn test_insider_trading_net_selling() {
-        let factor = InsiderTrading;
+        let factor = InsiderTrading::default();
 
         // Create test data with more sells than buys
         let dates: Vec<String> = (0..10)
@@ -224,7 +253,7 @@ mod tests {
 
     #[test]
     fn test_insider_trading_multiple_stocks() {
-        let factor = InsiderTrading;
+        let factor = InsiderTrading::default();
 
         // Create test data for multiple stocks
         let mut dates = Vec::new();
@@ -310,7 +339,7 @@ mod tests {
 
     #[test]
     fn test_insider_trading_metadata() {
-        let factor = InsiderTrading;
+        let factor = InsiderTrading::default();
 
         assert_eq!(factor.name(), "insider_net_buying");
         assert_eq!(factor.category(), FactorCategory::Sentiment);
@@ -324,7 +353,7 @@ mod tests {
 
     #[test]
     fn test_insider_trading_no_activity() {
-        let factor = InsiderTrading;
+        let factor = InsiderTrading::default();
 
         // Create test data with no insider activity
         let dates: Vec<String> = (0..10)

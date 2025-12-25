@@ -6,10 +6,14 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+
+/// Configuration for Return on Equity factor.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct RoeConfig {}
 
 /// Return on Equity factor.
 ///
@@ -21,7 +25,9 @@ use polars::prelude::*;
 /// This factor is commonly used in quality-based strategies and indicates
 /// how well a company generates profits from shareholder investments.
 #[derive(Debug, Clone, Default)]
-pub struct Roe;
+pub struct Roe {
+    config: RoeConfig,
+}
 
 impl Factor for Roe {
     fn name(&self) -> &str {
@@ -63,13 +69,25 @@ impl Factor for Roe {
     }
 }
 
+impl ConfigurableFactor for Roe {
+    type Config = RoeConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_roe_metadata() {
-        let factor = Roe;
+        let factor = Roe::default();
         assert_eq!(factor.name(), "roe");
         assert_eq!(factor.lookback(), 1);
         assert_eq!(factor.frequency(), DataFrequency::Quarterly);
@@ -86,7 +104,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = Roe;
+        let factor = Roe::default();
         let result = factor
             .compute_raw(&df.lazy(), NaiveDate::from_ymd_opt(2024, 3, 31).unwrap())
             .unwrap();

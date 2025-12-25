@@ -3,22 +3,40 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
 
+/// Configuration for residual momentum factor.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ResidualMomentumConfig {
+    /// Full lookback window for regression in days (default: 252 = 12 months)
+    pub lookback: usize,
+    /// Number of recent days to skip (default: 21 = 1 month)
+    pub skip_days: usize,
+}
+
+impl Default for ResidualMomentumConfig {
+    fn default() -> Self {
+        Self {
+            lookback: 252,
+            skip_days: 21,
+        }
+    }
+}
+
 /// Residual momentum factor measuring momentum orthogonal to market movements.
 ///
-/// Measures the cumulative residual return over the past 12 months (252 trading days),
-/// excluding the most recent month (21 trading days). The residuals are computed from
+/// Measures the cumulative residual return over the past lookback period,
+/// excluding the most recent skip_days. The residuals are computed from
 /// regressing stock returns against market returns.
 ///
 /// Computation:
 /// 1. Compute daily returns for both the stock and the market
-/// 2. Regress stock returns on market returns over the full 252-day window
+/// 2. Regress stock returns on market returns over the full lookback window
 /// 3. Extract residuals from the regression
-/// 4. Sum residuals from t-252 to t-21 (excluding most recent month)
+/// 4. Sum residuals from t-lookback to t-skip_days
 ///
 /// This factor captures stock-specific momentum that is independent of overall
 /// market trends, providing a purer measure of idiosyncratic momentum.
@@ -29,7 +47,9 @@ use polars::prelude::*;
 /// - Market-neutral momentum strategies
 /// - Identifying stocks with momentum independent of market beta
 #[derive(Debug, Clone, Default)]
-pub struct ResidualMomentum;
+pub struct ResidualMomentum {
+    config: ResidualMomentumConfig,
+}
 
 impl Factor for ResidualMomentum {
     fn name(&self) -> &str {
@@ -49,7 +69,7 @@ impl Factor for ResidualMomentum {
     }
 
     fn lookback(&self) -> usize {
-        252
+        self.config.lookback
     }
 
     fn frequency(&self) -> DataFrequency {
@@ -61,6 +81,9 @@ impl Factor for ResidualMomentum {
         let filtered = data
             .clone()
             .filter(col("date").lt_eq(lit(date.format("%Y-%m-%d").to_string())));
+
+        let lookback = self.config.lookback;
+        let skip_days = self.config.skip_days;
 
         // Compute stock returns using shift
         let with_returns = filtered
@@ -119,17 +142,17 @@ impl Factor for ResidualMomentum {
                     .alias("residual"),
             );
 
-        // Sum residuals over the past 252 days excluding the most recent 21 days
-        // For each symbol, we take the last 252 residuals, exclude the last 21, and sum
+        // Sum residuals over the past lookback days excluding the most recent skip_days
+        let residual_count = lookback - skip_days;
         let result = with_residuals
             .group_by([col("symbol")])
             .agg([
                 col("date").sort(Default::default()).last().alias("date"),
-                // Get last 252 residuals, take first 231 (exclude last 21), and sum
+                // Get last lookback residuals, take first (lookback - skip_days), and sum
                 col("residual")
                     .sort_by([col("date")], Default::default())
-                    .tail(Some(252))
-                    .slice(lit(0), lit(231))
+                    .tail(Some(lookback))
+                    .slice(lit(0), lit(residual_count as u32))
                     .sum()
                     .alias(self.name()),
             ])
@@ -142,6 +165,18 @@ impl Factor for ResidualMomentum {
     }
 }
 
+impl ConfigurableFactor for ResidualMomentum {
+    type Config = ResidualMomentumConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -149,7 +184,7 @@ mod tests {
 
     #[test]
     fn test_residual_momentum_basic() {
-        let factor = ResidualMomentum;
+        let factor = ResidualMomentum::default();
 
         // Create test data with 300 days to ensure sufficient data
         // Need: 1 day lost to returns + 252 for lookback + 21 to exclude + buffer
@@ -219,7 +254,7 @@ mod tests {
 
     #[test]
     fn test_residual_momentum_negative() {
-        let factor = ResidualMomentum;
+        let factor = ResidualMomentum::default();
 
         // Create test data where stock underperforms market
         let num_days: usize = 300;
@@ -280,7 +315,7 @@ mod tests {
 
     #[test]
     fn test_residual_momentum_multiple_symbols() {
-        let factor = ResidualMomentum;
+        let factor = ResidualMomentum::default();
 
         // Create test data for two stocks
         let mut symbols = Vec::new();
@@ -397,7 +432,7 @@ mod tests {
 
     #[test]
     fn test_residual_momentum_metadata() {
-        let factor = ResidualMomentum;
+        let factor = ResidualMomentum::default();
 
         assert_eq!(factor.name(), "residual_momentum");
         assert_eq!(factor.category(), FactorCategory::Momentum);

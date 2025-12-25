@@ -6,10 +6,11 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+use serde::{Deserialize, Serialize};
 
 /// Dollar volume factor.
 ///
@@ -38,20 +39,50 @@ use polars::prelude::*;
 ///
 /// - Brennan, M. J., and A. Subrahmanyam (1996). "Market microstructure and asset pricing:
 ///   On the compensation for illiquidity in stock returns," Journal of Financial Economics.
+///
+/// Configuration for DollarVolume factor.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DollarVolumeConfig {
+    /// Number of days to average dollar volume over.
+    pub lookback: usize,
+    /// Minimum number of periods required for valid calculation.
+    pub min_periods: usize,
+}
+
+impl Default for DollarVolumeConfig {
+    fn default() -> Self {
+        Self {
+            lookback: 20,
+            min_periods: 20,
+        }
+    }
+}
+
+/// Dollar volume factor implementation.
 #[derive(Debug, Clone)]
 pub struct DollarVolume {
-    lookback: usize,
+    config: DollarVolumeConfig,
 }
 
 impl DollarVolume {
     /// Creates a new DollarVolume factor with default 20-day lookback.
     pub const fn new() -> Self {
-        Self { lookback: 20 }
+        Self {
+            config: DollarVolumeConfig {
+                lookback: 20,
+                min_periods: 20,
+            },
+        }
     }
 
     /// Creates a DollarVolume factor with a custom lookback period.
     pub const fn with_lookback(lookback: usize) -> Self {
-        Self { lookback }
+        Self {
+            config: DollarVolumeConfig {
+                lookback,
+                min_periods: lookback,
+            },
+        }
     }
 }
 
@@ -79,7 +110,7 @@ impl Factor for DollarVolume {
     }
 
     fn lookback(&self) -> usize {
-        self.lookback
+        self.config.lookback
     }
 
     fn frequency(&self) -> DataFrequency {
@@ -100,8 +131,8 @@ impl Factor for DollarVolume {
             .with_column(
                 col("daily_dollar_volume")
                     .rolling_mean(RollingOptionsFixedWindow {
-                        window_size: self.lookback,
-                        min_periods: self.lookback,
+                        window_size: self.config.lookback,
+                        min_periods: self.config.min_periods,
                         ..Default::default()
                     })
                     .over([col("symbol")])
@@ -114,6 +145,18 @@ impl Factor for DollarVolume {
             .collect()?;
 
         Ok(result)
+    }
+}
+
+impl ConfigurableFactor for DollarVolume {
+    type Config = DollarVolumeConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
     }
 }
 

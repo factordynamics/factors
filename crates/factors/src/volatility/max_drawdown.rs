@@ -11,10 +11,28 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+
+/// Configuration for the MaxDrawdown factor.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct MaxDrawdownConfig {
+    /// Number of trading days for the rolling calculation.
+    pub lookback: usize,
+    /// Minimum number of periods required for a valid calculation.
+    pub min_periods: usize,
+}
+
+impl Default for MaxDrawdownConfig {
+    fn default() -> Self {
+        Self {
+            lookback: 252,
+            min_periods: 252,
+        }
+    }
+}
 
 /// Maximum drawdown factor.
 ///
@@ -30,24 +48,43 @@ use polars::prelude::*;
 /// DataFrame with columns: `symbol`, `date`, `max_drawdown`
 #[derive(Debug, Clone)]
 pub struct MaxDrawdown {
-    lookback: usize,
+    config: MaxDrawdownConfig,
 }
 
 impl MaxDrawdown {
     /// Create a new MaxDrawdown factor with default lookback (252 days).
-    pub const fn new() -> Self {
-        Self { lookback: 252 }
+    pub fn new() -> Self {
+        Self {
+            config: MaxDrawdownConfig::default(),
+        }
     }
 
     /// Create a MaxDrawdown factor with custom lookback period.
     pub const fn with_lookback(lookback: usize) -> Self {
-        Self { lookback }
+        Self {
+            config: MaxDrawdownConfig {
+                lookback,
+                min_periods: lookback,
+            },
+        }
     }
 }
 
 impl Default for MaxDrawdown {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl ConfigurableFactor for MaxDrawdown {
+    type Config = MaxDrawdownConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
     }
 }
 
@@ -69,7 +106,7 @@ impl Factor for MaxDrawdown {
     }
 
     fn lookback(&self) -> usize {
-        self.lookback
+        self.config.lookback
     }
 
     fn frequency(&self) -> DataFrequency {
@@ -92,8 +129,8 @@ impl Factor for MaxDrawdown {
         let with_peak = sorted.with_column(
             col("close")
                 .rolling_max(RollingOptionsFixedWindow {
-                    window_size: self.lookback,
-                    min_periods: self.lookback,
+                    window_size: self.config.lookback,
+                    min_periods: self.config.min_periods,
                     ..Default::default()
                 })
                 .over([col("symbol")])
@@ -109,8 +146,8 @@ impl Factor for MaxDrawdown {
             .with_column(
                 col("drawdown")
                     .rolling_min(RollingOptionsFixedWindow {
-                        window_size: self.lookback,
-                        min_periods: self.lookback,
+                        window_size: self.config.lookback,
+                        min_periods: self.config.min_periods,
                         ..Default::default()
                     })
                     .over([col("symbol")])

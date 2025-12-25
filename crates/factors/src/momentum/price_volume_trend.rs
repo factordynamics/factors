@@ -3,15 +3,28 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
 
+/// Configuration for Price-Volume Trend factor.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct PriceVolumeTrendConfig {
+    /// Lookback window in days (default: 20)
+    pub lookback: usize,
+}
+
+impl Default for PriceVolumeTrendConfig {
+    fn default() -> Self {
+        Self { lookback: 20 }
+    }
+}
+
 /// Price-Volume Trend factor combining price momentum with volume.
 ///
 /// Calculates the cumulative sum of volume-weighted price changes:
-/// `PVT = Σ((P_t - P_{t-1})/P_{t-1}) * V_t` over 20 days
+/// `PVT = Σ((P_t - P_{t-1})/P_{t-1}) * V_t` over the lookback period
 ///
 /// where:
 /// - `P_t` is the current day's close price
@@ -25,7 +38,9 @@ use polars::prelude::*;
 ///
 /// Captures momentum quality by weighting price changes by trading volume.
 #[derive(Debug, Clone, Default)]
-pub struct PriceVolumeTrend;
+pub struct PriceVolumeTrend {
+    config: PriceVolumeTrendConfig,
+}
 
 impl Factor for PriceVolumeTrend {
     fn name(&self) -> &str {
@@ -45,7 +60,7 @@ impl Factor for PriceVolumeTrend {
     }
 
     fn lookback(&self) -> usize {
-        20
+        self.config.lookback
     }
 
     fn frequency(&self) -> DataFrequency {
@@ -59,6 +74,8 @@ impl Factor for PriceVolumeTrend {
             .filter(col("date").lt_eq(lit(date.format("%Y-%m-%d").to_string())))
             .collect()?;
 
+        let lookback = self.config.lookback;
+
         // Calculate PVT for each symbol by processing grouped data
         let mut results = Vec::new();
 
@@ -69,10 +86,10 @@ impl Factor for PriceVolumeTrend {
                 col("date").sort(Default::default()).last(),
                 col("close")
                     .sort_by([col("date")], Default::default())
-                    .tail(Some(self.lookback() + 1)),
+                    .tail(Some(lookback + 1)),
                 col("volume")
                     .sort_by([col("date")], Default::default())
-                    .tail(Some(self.lookback())),
+                    .tail(Some(lookback)),
             ])
             .collect()?;
 
@@ -94,7 +111,7 @@ impl Factor for PriceVolumeTrend {
                     crate::FactorError::Computation("Failed to get volumes series".to_string())
                 })?;
 
-            if prices.len() < (self.lookback() + 1) || volumes.len() < self.lookback() {
+            if prices.len() < (lookback + 1) || volumes.len() < lookback {
                 continue;
             }
 
@@ -103,7 +120,7 @@ impl Factor for PriceVolumeTrend {
 
             // Calculate volume-weighted price changes
             let mut pvt = 0.0;
-            for i in 0..self.lookback() {
+            for i in 0..lookback {
                 let price_change = (price_vec[i + 1] - price_vec[i]) / price_vec[i];
                 pvt += price_change * volume_vec[i];
             }
@@ -126,6 +143,18 @@ impl Factor for PriceVolumeTrend {
     }
 }
 
+impl ConfigurableFactor for PriceVolumeTrend {
+    type Config = PriceVolumeTrendConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -133,7 +162,7 @@ mod tests {
 
     #[test]
     fn test_pvt_rising_prices_with_volume() {
-        let factor = PriceVolumeTrend;
+        let factor = PriceVolumeTrend::default();
 
         // Create test data with rising prices and consistent volume
         let dates: Vec<String> = (0..21)
@@ -186,7 +215,7 @@ mod tests {
 
     #[test]
     fn test_pvt_falling_prices_with_volume() {
-        let factor = PriceVolumeTrend;
+        let factor = PriceVolumeTrend::default();
 
         // Create test data with falling prices and consistent volume
         let dates: Vec<String> = (0..21)
@@ -238,7 +267,7 @@ mod tests {
 
     #[test]
     fn test_pvt_metadata() {
-        let factor = PriceVolumeTrend;
+        let factor = PriceVolumeTrend::default();
 
         assert_eq!(factor.name(), "price_volume_trend");
         assert_eq!(factor.category(), FactorCategory::Momentum);

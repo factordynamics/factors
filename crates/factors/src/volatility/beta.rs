@@ -9,10 +9,28 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+
+/// Configuration for the MarketBeta factor.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct MarketBetaConfig {
+    /// Number of trading days for the rolling calculation.
+    pub lookback: usize,
+    /// Minimum number of periods required for a valid calculation.
+    pub min_periods: usize,
+}
+
+impl Default for MarketBetaConfig {
+    fn default() -> Self {
+        Self {
+            lookback: 252,
+            min_periods: 252,
+        }
+    }
+}
 
 /// Market beta factor.
 ///
@@ -30,24 +48,43 @@ use polars::prelude::*;
 /// DataFrame with columns: `symbol`, `date`, `market_beta`
 #[derive(Debug, Clone)]
 pub struct MarketBeta {
-    lookback: usize,
+    config: MarketBetaConfig,
 }
 
 impl MarketBeta {
     /// Create a new MarketBeta factor with default lookback (252 days).
-    pub const fn new() -> Self {
-        Self { lookback: 252 }
+    pub fn new() -> Self {
+        Self {
+            config: MarketBetaConfig::default(),
+        }
     }
 
     /// Create a MarketBeta factor with custom lookback period.
     pub const fn with_lookback(lookback: usize) -> Self {
-        Self { lookback }
+        Self {
+            config: MarketBetaConfig {
+                lookback,
+                min_periods: lookback,
+            },
+        }
     }
 }
 
 impl Default for MarketBeta {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl ConfigurableFactor for MarketBeta {
+    type Config = MarketBetaConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
     }
 }
 
@@ -69,7 +106,7 @@ impl Factor for MarketBeta {
     }
 
     fn lookback(&self) -> usize {
-        self.lookback
+        self.config.lookback
     }
 
     fn frequency(&self) -> DataFrequency {
@@ -101,8 +138,8 @@ impl Factor for MarketBeta {
             .with_column(
                 col("return")
                     .rolling_std(RollingOptionsFixedWindow {
-                        window_size: self.lookback,
-                        min_periods: self.lookback,
+                        window_size: self.config.lookback,
+                        min_periods: self.config.min_periods,
                         ..Default::default()
                     })
                     .over([col("symbol")])
@@ -111,8 +148,8 @@ impl Factor for MarketBeta {
             .with_column(
                 col("market_return")
                     .rolling_std(RollingOptionsFixedWindow {
-                        window_size: self.lookback,
-                        min_periods: self.lookback,
+                        window_size: self.config.lookback,
+                        min_periods: self.config.min_periods,
                         ..Default::default()
                     })
                     .over([col("symbol")])
@@ -121,8 +158,8 @@ impl Factor for MarketBeta {
             .with_column(
                 col("return")
                     .rolling_mean(RollingOptionsFixedWindow {
-                        window_size: self.lookback,
-                        min_periods: self.lookback,
+                        window_size: self.config.lookback,
+                        min_periods: self.config.min_periods,
                         ..Default::default()
                     })
                     .over([col("symbol")])
@@ -131,8 +168,8 @@ impl Factor for MarketBeta {
             .with_column(
                 col("market_return")
                     .rolling_mean(RollingOptionsFixedWindow {
-                        window_size: self.lookback,
-                        min_periods: self.lookback,
+                        window_size: self.config.lookback,
+                        min_periods: self.config.min_periods,
                         ..Default::default()
                     })
                     .over([col("symbol")])

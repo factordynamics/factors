@@ -21,7 +21,7 @@ pub mod volatility;
 pub use error::{FactorError, Result};
 pub use registry::{FactorCategory, FactorInfo, FactorRegistry};
 pub use standardize::{cross_sectional_standardize, robust_standardize, winsorize};
-pub use traits::{DataFrequency, Factor};
+pub use traits::{ConfigurableFactor, DataFrequency, Factor, FactorConfig};
 
 /// Crate version
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

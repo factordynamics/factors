@@ -9,10 +9,28 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+
+/// Configuration for the HistoricalVolatility factor.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct HistoricalVolatilityConfig {
+    /// Number of trading days for the rolling calculation.
+    pub lookback: usize,
+    /// Minimum number of periods required for a valid calculation.
+    pub min_periods: usize,
+}
+
+impl Default for HistoricalVolatilityConfig {
+    fn default() -> Self {
+        Self {
+            lookback: 63,
+            min_periods: 63,
+        }
+    }
+}
 
 /// Historical volatility factor.
 ///
@@ -30,24 +48,43 @@ use polars::prelude::*;
 /// DataFrame with columns: `symbol`, `date`, `historical_volatility`
 #[derive(Debug, Clone)]
 pub struct HistoricalVolatility {
-    lookback: usize,
+    config: HistoricalVolatilityConfig,
 }
 
 impl HistoricalVolatility {
     /// Create a new HistoricalVolatility factor with default lookback (63 days).
-    pub const fn new() -> Self {
-        Self { lookback: 63 }
+    pub fn new() -> Self {
+        Self {
+            config: HistoricalVolatilityConfig::default(),
+        }
     }
 
     /// Create a HistoricalVolatility factor with custom lookback period.
     pub const fn with_lookback(lookback: usize) -> Self {
-        Self { lookback }
+        Self {
+            config: HistoricalVolatilityConfig {
+                lookback,
+                min_periods: lookback,
+            },
+        }
     }
 }
 
 impl Default for HistoricalVolatility {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl ConfigurableFactor for HistoricalVolatility {
+    type Config = HistoricalVolatilityConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
     }
 }
 
@@ -69,7 +106,7 @@ impl Factor for HistoricalVolatility {
     }
 
     fn lookback(&self) -> usize {
-        self.lookback
+        self.config.lookback
     }
 
     fn frequency(&self) -> DataFrequency {
@@ -105,8 +142,8 @@ impl Factor for HistoricalVolatility {
             .with_column(
                 col("return")
                     .rolling_std(RollingOptionsFixedWindow {
-                        window_size: self.lookback,
-                        min_periods: self.lookback,
+                        window_size: self.config.lookback,
+                        min_periods: self.config.min_periods,
                         ..Default::default()
                     })
                     .over([col("symbol")])

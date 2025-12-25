@@ -11,10 +11,28 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+
+/// Configuration for the ReturnKurtosis factor.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ReturnKurtosisConfig {
+    /// Number of trading days for the rolling calculation.
+    pub lookback: usize,
+    /// Minimum number of periods required for a valid calculation.
+    pub min_periods: usize,
+}
+
+impl Default for ReturnKurtosisConfig {
+    fn default() -> Self {
+        Self {
+            lookback: 252,
+            min_periods: 252,
+        }
+    }
+}
 
 /// Return kurtosis factor.
 ///
@@ -30,24 +48,43 @@ use polars::prelude::*;
 /// DataFrame with columns: `symbol`, `date`, `return_kurtosis`
 #[derive(Debug, Clone)]
 pub struct ReturnKurtosis {
-    lookback: usize,
+    config: ReturnKurtosisConfig,
 }
 
 impl ReturnKurtosis {
     /// Create a new ReturnKurtosis factor with default lookback (252 days).
-    pub const fn new() -> Self {
-        Self { lookback: 252 }
+    pub fn new() -> Self {
+        Self {
+            config: ReturnKurtosisConfig::default(),
+        }
     }
 
     /// Create a ReturnKurtosis factor with custom lookback period.
     pub const fn with_lookback(lookback: usize) -> Self {
-        Self { lookback }
+        Self {
+            config: ReturnKurtosisConfig {
+                lookback,
+                min_periods: lookback,
+            },
+        }
     }
 }
 
 impl Default for ReturnKurtosis {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl ConfigurableFactor for ReturnKurtosis {
+    type Config = ReturnKurtosisConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
     }
 }
 
@@ -69,7 +106,7 @@ impl Factor for ReturnKurtosis {
     }
 
     fn lookback(&self) -> usize {
-        self.lookback
+        self.config.lookback
     }
 
     fn frequency(&self) -> DataFrequency {
@@ -101,8 +138,8 @@ impl Factor for ReturnKurtosis {
             .with_column(
                 col("return")
                     .rolling_mean(RollingOptionsFixedWindow {
-                        window_size: self.lookback,
-                        min_periods: self.lookback,
+                        window_size: self.config.lookback,
+                        min_periods: self.config.min_periods,
                         ..Default::default()
                     })
                     .over([col("symbol")])
@@ -111,8 +148,8 @@ impl Factor for ReturnKurtosis {
             .with_column(
                 col("return")
                     .rolling_std(RollingOptionsFixedWindow {
-                        window_size: self.lookback,
-                        min_periods: self.lookback,
+                        window_size: self.config.lookback,
+                        min_periods: self.config.min_periods,
                         ..Default::default()
                     })
                     .over([col("symbol")])
@@ -129,8 +166,8 @@ impl Factor for ReturnKurtosis {
             .with_column(
                 col("z_fourth")
                     .rolling_mean(RollingOptionsFixedWindow {
-                        window_size: self.lookback,
-                        min_periods: self.lookback,
+                        window_size: self.config.lookback,
+                        min_periods: self.config.min_periods,
                         ..Default::default()
                     })
                     .over([col("symbol")])

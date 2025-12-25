@@ -3,10 +3,28 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+
+/// Configuration for volume momentum factor.
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+pub struct VolumeMomentumConfig {
+    /// Number of days for short-term average volume (default: 5)
+    pub short_window: usize,
+    /// Number of days for long-term average volume (default: 20)
+    pub long_window: usize,
+}
+
+impl Default for VolumeMomentumConfig {
+    fn default() -> Self {
+        Self {
+            short_window: 5,
+            long_window: 20,
+        }
+    }
+}
 
 /// Volume momentum factor measuring recent volume relative to baseline.
 ///
@@ -29,7 +47,9 @@ use polars::prelude::*;
 /// Values > 1 indicate increasing volume (accumulation/distribution).
 /// Values < 1 indicate decreasing volume (low conviction).
 #[derive(Debug, Clone, Default)]
-pub struct VolumeMomentum;
+pub struct VolumeMomentum {
+    config: VolumeMomentumConfig,
+}
 
 impl Factor for VolumeMomentum {
     fn name(&self) -> &str {
@@ -49,7 +69,7 @@ impl Factor for VolumeMomentum {
     }
 
     fn lookback(&self) -> usize {
-        20
+        self.config.long_window
     }
 
     fn frequency(&self) -> DataFrequency {
@@ -63,29 +83,32 @@ impl Factor for VolumeMomentum {
             .filter(col("date").lt_eq(lit(date.format("%Y-%m-%d").to_string())))
             .collect()?;
 
+        let short_window = self.config.short_window;
+        let long_window = self.config.long_window;
+
         // Group by symbol and compute volume momentum
         let result = filtered
             .lazy()
             .group_by([col("symbol")])
             .agg([
                 col("date").sort(Default::default()).last().alias("date"),
-                // 5-day average volume
+                // Short-term average volume
                 col("volume")
                     .sort_by([col("date")], Default::default())
-                    .tail(Some(5))
+                    .tail(Some(short_window))
                     .mean()
-                    .alias("vol_5d"),
-                // 20-day average volume
+                    .alias("vol_short"),
+                // Long-term average volume
                 col("volume")
                     .sort_by([col("date")], Default::default())
-                    .tail(Some(20))
+                    .tail(Some(long_window))
                     .mean()
-                    .alias("vol_20d"),
+                    .alias("vol_long"),
             ])
             .with_column(
-                when(col("vol_20d").gt(lit(1.0)))
-                    .then(col("vol_5d") / col("vol_20d"))
-                    .otherwise(col("vol_5d"))
+                when(col("vol_long").gt(lit(1.0)))
+                    .then(col("vol_short") / col("vol_long"))
+                    .otherwise(col("vol_short"))
                     .alias(self.name()),
             )
             .select([col("symbol"), col("date"), col(self.name())])
@@ -96,6 +119,18 @@ impl Factor for VolumeMomentum {
     }
 }
 
+impl ConfigurableFactor for VolumeMomentum {
+    type Config = VolumeMomentumConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -103,7 +138,7 @@ mod tests {
 
     #[test]
     fn test_volume_momentum_basic() {
-        let factor = VolumeMomentum;
+        let factor = VolumeMomentum::default();
 
         // Create test data with 20 days of volume
         let dates: Vec<String> = (0..20)
@@ -168,7 +203,7 @@ mod tests {
 
     #[test]
     fn test_volume_momentum_metadata() {
-        let factor = VolumeMomentum;
+        let factor = VolumeMomentum::default();
 
         assert_eq!(factor.name(), "volume_momentum");
         assert_eq!(factor.category(), FactorCategory::Momentum);

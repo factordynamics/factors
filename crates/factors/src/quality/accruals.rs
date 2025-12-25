@@ -7,10 +7,14 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+
+/// Configuration for Accruals Quality factor.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct AccrualsQualityConfig {}
 
 /// Accruals Quality factor.
 ///
@@ -27,7 +31,9 @@ use polars::prelude::*;
 /// Based on Sloan (1996): "Do Stock Prices Fully Reflect Information in
 /// Accruals and Cash Flows about Future Earnings?"
 #[derive(Debug, Clone, Default)]
-pub struct AccrualsQuality;
+pub struct AccrualsQuality {
+    config: AccrualsQualityConfig,
+}
 
 impl Factor for AccrualsQuality {
     fn name(&self) -> &str {
@@ -76,13 +82,25 @@ impl Factor for AccrualsQuality {
     }
 }
 
+impl ConfigurableFactor for AccrualsQuality {
+    type Config = AccrualsQualityConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_accruals_quality_metadata() {
-        let factor = AccrualsQuality;
+        let factor = AccrualsQuality::default();
         assert_eq!(factor.name(), "accruals_quality");
         assert_eq!(factor.lookback(), 1);
         assert_eq!(factor.frequency(), DataFrequency::Quarterly);
@@ -100,7 +118,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = AccrualsQuality;
+        let factor = AccrualsQuality::default();
         let result = factor
             .compute_raw(&df.lazy(), NaiveDate::from_ymd_opt(2024, 3, 31).unwrap())
             .unwrap();
@@ -134,7 +152,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = AccrualsQuality;
+        let factor = AccrualsQuality::default();
         let result = factor
             .compute_raw(&df.lazy(), NaiveDate::from_ymd_opt(2024, 3, 31).unwrap())
             .unwrap();
@@ -158,7 +176,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = AccrualsQuality;
+        let factor = AccrualsQuality::default();
         let result = factor
             .compute_raw(&df.lazy(), NaiveDate::from_ymd_opt(2024, 3, 31).unwrap())
             .unwrap();

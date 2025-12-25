@@ -6,10 +6,14 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+
+/// Configuration for Gross Profitability factor.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct GrossProfitabilityConfig {}
 
 /// Gross Profitability factor.
 ///
@@ -28,7 +32,9 @@ use polars::prelude::*;
 /// Reference: Novy-Marx, R. (2013). "The other side of value: The gross
 /// profitability premium." Journal of Financial Economics, 108(1), 1-28.
 #[derive(Debug, Clone, Default)]
-pub struct GrossProfitability;
+pub struct GrossProfitability {
+    config: GrossProfitabilityConfig,
+}
 
 impl Factor for GrossProfitability {
     fn name(&self) -> &str {
@@ -70,13 +76,25 @@ impl Factor for GrossProfitability {
     }
 }
 
+impl ConfigurableFactor for GrossProfitability {
+    type Config = GrossProfitabilityConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_gross_profitability_metadata() {
-        let factor = GrossProfitability;
+        let factor = GrossProfitability::default();
         assert_eq!(factor.name(), "gross_profitability");
         assert_eq!(factor.lookback(), 1);
         assert_eq!(factor.frequency(), DataFrequency::Quarterly);
@@ -94,7 +112,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = GrossProfitability;
+        let factor = GrossProfitability::default();
         let result = factor
             .compute_raw(&df.lazy(), NaiveDate::from_ymd_opt(2024, 3, 31).unwrap())
             .unwrap();
@@ -115,7 +133,7 @@ mod tests {
 
     #[test]
     fn test_gross_profitability_required_columns() {
-        let factor = GrossProfitability;
+        let factor = GrossProfitability::default();
         let required = factor.required_columns();
         assert_eq!(required.len(), 5);
         assert!(required.contains(&"symbol"));
@@ -137,7 +155,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = GrossProfitability;
+        let factor = GrossProfitability::default();
         let result = factor
             .compute_raw(&df.lazy(), NaiveDate::from_ymd_opt(2024, 3, 31).unwrap())
             .unwrap();

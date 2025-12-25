@@ -6,10 +6,14 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+
+/// Configuration for Leverage factor.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct LeverageConfig {}
 
 /// Leverage factor.
 ///
@@ -22,7 +26,9 @@ use polars::prelude::*;
 /// Lower leverage generally indicates more conservative capital structure and
 /// lower financial risk, though optimal leverage varies by industry.
 #[derive(Debug, Clone, Default)]
-pub struct Leverage;
+pub struct Leverage {
+    config: LeverageConfig,
+}
 
 impl Factor for Leverage {
     fn name(&self) -> &str {
@@ -64,13 +70,25 @@ impl Factor for Leverage {
     }
 }
 
+impl ConfigurableFactor for Leverage {
+    type Config = LeverageConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_leverage_metadata() {
-        let factor = Leverage;
+        let factor = Leverage::default();
         assert_eq!(factor.name(), "leverage");
         assert_eq!(factor.lookback(), 1);
         assert_eq!(factor.frequency(), DataFrequency::Quarterly);
@@ -87,7 +105,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = Leverage;
+        let factor = Leverage::default();
         let result = factor
             .compute_raw(&df.lazy(), NaiveDate::from_ymd_opt(2024, 3, 31).unwrap())
             .unwrap();

@@ -9,10 +9,25 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+use serde::{Deserialize, Serialize};
+
+/// Configuration for the Asset Growth factor.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AssetGrowthConfig {
+    /// Number of quarters to look back for growth calculation.
+    /// Default is 4 (year-over-year). Use 2 for semi-annual, 8 for 2-year growth.
+    pub growth_periods: usize,
+}
+
+impl Default for AssetGrowthConfig {
+    fn default() -> Self {
+        Self { growth_periods: 4 }
+    }
+}
 
 /// Asset growth factor - year-over-year total assets growth rate.
 ///
@@ -27,7 +42,9 @@ use polars::prelude::*;
 /// # Returns
 /// DataFrame with columns: `symbol`, `date`, `asset_growth`
 #[derive(Debug, Clone, Default)]
-pub struct AssetGrowth;
+pub struct AssetGrowth {
+    config: AssetGrowthConfig,
+}
 
 impl Factor for AssetGrowth {
     fn name(&self) -> &str {
@@ -47,7 +64,7 @@ impl Factor for AssetGrowth {
     }
 
     fn lookback(&self) -> usize {
-        4 // 4 quarters for year-over-year comparison
+        self.config.growth_periods
     }
 
     fn frequency(&self) -> DataFrequency {
@@ -72,23 +89,34 @@ impl Factor for AssetGrowth {
             )
             .collect()?;
 
-        // Compute year-over-year growth: (Total Assets_t / Total Assets_{t-4}) - 1
+        // Compute growth: (Total Assets_t / Total Assets_{t-n}) - 1
+        let lag_alias = format!("total_assets_lag{}", self.config.growth_periods);
         let result = sorted
             .lazy()
             .with_column(
                 col("total_assets")
-                    .shift(lit(4))
+                    .shift(lit(self.config.growth_periods as i64))
                     .over([col("symbol")])
-                    .alias("total_assets_lag4"),
+                    .alias(&lag_alias),
             )
             .filter(col("date").eq(lit(date.to_string())))
-            .with_column(
-                ((col("total_assets") / col("total_assets_lag4")) - lit(1.0)).alias("asset_growth"),
-            )
+            .with_column(((col("total_assets") / col(&lag_alias)) - lit(1.0)).alias("asset_growth"))
             .select([col("symbol"), col("date"), col("asset_growth")])
             .collect()?;
 
         Ok(result)
+    }
+}
+
+impl ConfigurableFactor for AssetGrowth {
+    type Config = AssetGrowthConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
     }
 }
 
@@ -109,7 +137,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = AssetGrowth;
+        let factor = AssetGrowth::default();
         let result = factor
             .compute_raw(&df.lazy(), NaiveDate::from_ymd_opt(2024, 1, 1).unwrap())
             .unwrap();
@@ -126,7 +154,7 @@ mod tests {
 
     #[test]
     fn test_asset_growth_metadata() {
-        let factor = AssetGrowth;
+        let factor = AssetGrowth::default();
         assert_eq!(factor.name(), "asset_growth");
         assert_eq!(factor.category(), FactorCategory::Growth);
         assert_eq!(factor.lookback(), 4);
@@ -147,7 +175,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = AssetGrowth;
+        let factor = AssetGrowth::default();
         let result = factor
             .compute_raw(&df.lazy(), NaiveDate::from_ymd_opt(2024, 1, 1).unwrap())
             .unwrap();

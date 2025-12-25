@@ -6,10 +6,11 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+use serde::{Deserialize, Serialize};
 
 /// Days to cover factor.
 ///
@@ -39,20 +40,50 @@ use polars::prelude::*;
 ///
 /// - Dechow, P. M., A. P. Hutton, L. Meulbroek, and R. G. Sloan (2001).
 ///   "Short-sellers, fundamental analysis, and stock returns," Journal of Financial Economics.
+///
+/// Configuration for DaysToCover factor.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DaysToCoverConfig {
+    /// Number of days to average volume over.
+    pub lookback: usize,
+    /// Minimum number of periods required for valid calculation.
+    pub min_periods: usize,
+}
+
+impl Default for DaysToCoverConfig {
+    fn default() -> Self {
+        Self {
+            lookback: 20,
+            min_periods: 20,
+        }
+    }
+}
+
+/// Days to cover factor implementation.
 #[derive(Debug, Clone)]
 pub struct DaysToCover {
-    lookback: usize,
+    config: DaysToCoverConfig,
 }
 
 impl DaysToCover {
     /// Creates a new DaysToCover factor with default 20-day lookback.
     pub const fn new() -> Self {
-        Self { lookback: 20 }
+        Self {
+            config: DaysToCoverConfig {
+                lookback: 20,
+                min_periods: 20,
+            },
+        }
     }
 
     /// Creates a DaysToCover factor with a custom lookback period.
     pub const fn with_lookback(lookback: usize) -> Self {
-        Self { lookback }
+        Self {
+            config: DaysToCoverConfig {
+                lookback,
+                min_periods: lookback,
+            },
+        }
     }
 }
 
@@ -80,7 +111,7 @@ impl Factor for DaysToCover {
     }
 
     fn lookback(&self) -> usize {
-        self.lookback
+        self.config.lookback
     }
 
     fn frequency(&self) -> DataFrequency {
@@ -99,8 +130,8 @@ impl Factor for DaysToCover {
             .with_column(
                 col("volume")
                     .rolling_mean(RollingOptionsFixedWindow {
-                        window_size: self.lookback,
-                        min_periods: self.lookback,
+                        window_size: self.config.lookback,
+                        min_periods: self.config.min_periods,
                         ..Default::default()
                     })
                     .over([col("symbol")])
@@ -118,6 +149,18 @@ impl Factor for DaysToCover {
             .collect()?;
 
         Ok(result)
+    }
+}
+
+impl ConfigurableFactor for DaysToCover {
+    type Config = DaysToCoverConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
     }
 }
 

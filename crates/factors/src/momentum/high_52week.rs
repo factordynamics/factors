@@ -3,19 +3,32 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
 
+/// Configuration for 52-week high factor.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct High52WeekConfig {
+    /// Lookback window in days (default: 252 = 52 weeks)
+    pub lookback: usize,
+}
+
+impl Default for High52WeekConfig {
+    fn default() -> Self {
+        Self { lookback: 252 }
+    }
+}
+
 /// 52-week high factor measuring proximity to 52-week high.
 ///
-/// Measures how close a stock's current price is to its 52-week high:
-/// `P_t / max(P_{t-252:t})`
+/// Measures how close a stock's current price is to its high over the lookback period:
+/// `P_t / max(P_{t-lookback:t})`
 ///
 /// where:
 /// - `P_t` is the current price
-/// - `max(P_{t-252:t})` is the maximum price over the past 252 trading days (approximately 1 year)
+/// - `max(P_{t-lookback:t})` is the maximum price over the lookback period (default: 252 trading days)
 ///
 /// This factor captures behavioral anchoring effects where stocks trading near
 /// their highs tend to have momentum. Research shows that stocks near their
@@ -24,10 +37,12 @@ use polars::prelude::*;
 /// - Breakout effects as prices exceed psychological barriers
 /// - Herding behavior as investors chase high-flying stocks
 ///
-/// A value near 1.0 indicates the stock is at or near its 52-week high,
+/// A value near 1.0 indicates the stock is at or near its high,
 /// while lower values indicate the stock is trading below its peak.
 #[derive(Debug, Clone, Default)]
-pub struct High52Week;
+pub struct High52Week {
+    config: High52WeekConfig,
+}
 
 impl Factor for High52Week {
     fn name(&self) -> &str {
@@ -47,7 +62,7 @@ impl Factor for High52Week {
     }
 
     fn lookback(&self) -> usize {
-        252
+        self.config.lookback
     }
 
     fn frequency(&self) -> DataFrequency {
@@ -73,7 +88,7 @@ impl Factor for High52Week {
                     .alias("current_price"),
                 col("close")
                     .sort_by([col("date")], Default::default())
-                    .tail(Some(self.lookback() + 1))
+                    .tail(Some(self.config.lookback + 1))
                     .max()
                     .alias("max_price"),
             ])
@@ -86,6 +101,18 @@ impl Factor for High52Week {
     }
 }
 
+impl ConfigurableFactor for High52Week {
+    type Config = High52WeekConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -93,7 +120,7 @@ mod tests {
 
     #[test]
     fn test_high_52week_at_peak() {
-        let factor = High52Week;
+        let factor = High52Week::default();
 
         // Create test data with 253 days of prices
         // Price steadily increases, so the last price is the 52-week high
@@ -140,7 +167,7 @@ mod tests {
 
     #[test]
     fn test_high_52week_below_peak() {
-        let factor = High52Week;
+        let factor = High52Week::default();
 
         // Create test data where price peaks in the middle and then declines
         let dates: Vec<String> = (0..253)
@@ -195,7 +222,7 @@ mod tests {
 
     #[test]
     fn test_high_52week_multiple_symbols() {
-        let factor = High52Week;
+        let factor = High52Week::default();
 
         // Create test data for two symbols
         let mut dates = Vec::new();
@@ -264,7 +291,7 @@ mod tests {
 
     #[test]
     fn test_high_52week_metadata() {
-        let factor = High52Week;
+        let factor = High52Week::default();
 
         assert_eq!(factor.name(), "high_52week");
         assert_eq!(factor.category(), FactorCategory::Momentum);

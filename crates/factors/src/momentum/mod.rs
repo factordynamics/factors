@@ -20,14 +20,14 @@ pub mod volume_momentum;
 
 pub use acceleration::MomentumAcceleration;
 pub use high_52week::High52Week;
-pub use long_term::LongTermMomentum;
+pub use long_term::{LongTermMomentum, LongTermMomentumConfig};
 pub use ma_crossover::MACrossover;
 pub use mean_reversion::MeanReversion;
-pub use medium_term::MediumTermMomentum;
+pub use medium_term::{MediumTermMomentum, MediumTermMomentumConfig};
 pub use price_volume_trend::PriceVolumeTrend;
 pub use residual::ResidualMomentum;
 pub use rsi::RSI;
-pub use short_term::ShortTermMomentum;
+pub use short_term::{ShortTermMomentum, ShortTermMomentumConfig};
 pub use time_series::TimeSeriesMomentum;
 pub use volatility_breakout::VolatilityBreakout;
 pub use volume_momentum::VolumeMomentum;

@@ -6,10 +6,14 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+
+/// Configuration for Altman Z-Score factor.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct AltmanZConfig {}
 
 /// Altman Z-Score factor.
 ///
@@ -29,7 +33,9 @@ use polars::prelude::*;
 /// - 1.81 < Z < 2.99: "Grey" zone
 /// - Z < 1.81: "Distress" zone
 #[derive(Debug, Clone, Default)]
-pub struct AltmanZ;
+pub struct AltmanZ {
+    config: AltmanZConfig,
+}
 
 impl Factor for AltmanZ {
     fn name(&self) -> &str {
@@ -86,13 +92,25 @@ impl Factor for AltmanZ {
     }
 }
 
+impl ConfigurableFactor for AltmanZ {
+    type Config = AltmanZConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_altman_z_metadata() {
-        let factor = AltmanZ;
+        let factor = AltmanZ::default();
         assert_eq!(factor.name(), "altman_z_score");
         assert_eq!(factor.lookback(), 1);
         assert_eq!(factor.frequency(), DataFrequency::Quarterly);
@@ -115,7 +133,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = AltmanZ;
+        let factor = AltmanZ::default();
         let result = factor
             .compute_raw(&df.lazy(), NaiveDate::from_ymd_opt(2024, 3, 31).unwrap())
             .unwrap();
@@ -146,7 +164,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = AltmanZ;
+        let factor = AltmanZ::default();
         let result = factor
             .compute_raw(&df.lazy(), NaiveDate::from_ymd_opt(2024, 3, 31).unwrap())
             .unwrap();

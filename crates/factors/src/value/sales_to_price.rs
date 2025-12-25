@@ -6,10 +6,20 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+
+/// Configuration for sales-to-price factor.
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+pub struct SalesToPriceConfig;
+
+impl Default for SalesToPriceConfig {
+    fn default() -> Self {
+        Self
+    }
+}
 
 /// Sales-to-price value factor.
 ///
@@ -47,8 +57,18 @@ use polars::prelude::*;
 ///
 /// let result = factor.compute(&data, NaiveDate::from_ymd_opt(2024, 3, 31).unwrap())?;
 /// ```
-#[derive(Debug, Clone, Copy, Default)]
-pub struct SalesToPrice;
+#[derive(Debug, Clone, Copy)]
+pub struct SalesToPrice {
+    config: SalesToPriceConfig,
+}
+
+impl Default for SalesToPrice {
+    fn default() -> Self {
+        Self {
+            config: SalesToPriceConfig,
+        }
+    }
+}
 
 impl Factor for SalesToPrice {
     fn name(&self) -> &str {
@@ -90,6 +110,18 @@ impl Factor for SalesToPrice {
     }
 }
 
+impl ConfigurableFactor for SalesToPrice {
+    type Config = SalesToPriceConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -105,7 +137,7 @@ mod tests {
         .unwrap()
         .lazy();
 
-        let factor = SalesToPrice;
+        let factor = SalesToPrice::default();
         let date = NaiveDate::from_ymd_opt(2024, 3, 31).unwrap();
         let result = factor.compute_raw(&data, date).unwrap();
 
@@ -120,7 +152,7 @@ mod tests {
 
     #[test]
     fn test_sales_to_price_metadata() {
-        let factor = SalesToPrice;
+        let factor = SalesToPrice::default();
         assert_eq!(factor.name(), "sales_to_price");
         assert_eq!(factor.category(), FactorCategory::Value);
         assert_eq!(factor.lookback(), 1);
@@ -138,7 +170,7 @@ mod tests {
         .unwrap()
         .lazy();
 
-        let factor = SalesToPrice;
+        let factor = SalesToPrice::default();
         let date = NaiveDate::from_ymd_opt(2024, 3, 31).unwrap();
         let result = factor.compute_raw(&data, date).unwrap();
 

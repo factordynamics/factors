@@ -6,10 +6,14 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+
+/// Configuration for Cash Flow Quality factor.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct CashflowQualityConfig {}
 
 /// Cash Flow Quality factor.
 ///
@@ -27,7 +31,9 @@ use polars::prelude::*;
 /// Higher values are generally preferred as they indicate that reported profits
 /// are backed by actual cash flows rather than accounting accruals.
 #[derive(Debug, Clone, Default)]
-pub struct CashflowQuality;
+pub struct CashflowQuality {
+    config: CashflowQualityConfig,
+}
 
 impl Factor for CashflowQuality {
     fn name(&self) -> &str {
@@ -69,13 +75,25 @@ impl Factor for CashflowQuality {
     }
 }
 
+impl ConfigurableFactor for CashflowQuality {
+    type Config = CashflowQualityConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_cashflow_quality_metadata() {
-        let factor = CashflowQuality;
+        let factor = CashflowQuality::default();
         assert_eq!(factor.name(), "cashflow_quality");
         assert_eq!(factor.lookback(), 1);
         assert_eq!(factor.frequency(), DataFrequency::Quarterly);
@@ -93,7 +111,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = CashflowQuality;
+        let factor = CashflowQuality::default();
         let result = factor
             .compute_raw(&df.lazy(), NaiveDate::from_ymd_opt(2024, 3, 31).unwrap())
             .unwrap();
@@ -119,7 +137,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = CashflowQuality;
+        let factor = CashflowQuality::default();
         let result = factor
             .compute_raw(&df.lazy(), NaiveDate::from_ymd_opt(2024, 3, 31).unwrap())
             .unwrap();
@@ -142,7 +160,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = CashflowQuality;
+        let factor = CashflowQuality::default();
         let result = factor
             .compute_raw(&df.lazy(), NaiveDate::from_ymd_opt(2024, 3, 31).unwrap())
             .unwrap();
@@ -165,7 +183,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = CashflowQuality;
+        let factor = CashflowQuality::default();
         let result = factor
             .compute_raw(&df.lazy(), NaiveDate::from_ymd_opt(2024, 3, 31).unwrap())
             .unwrap();

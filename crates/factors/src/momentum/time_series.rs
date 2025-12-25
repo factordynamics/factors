@@ -3,10 +3,23 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+
+/// Configuration for time-series momentum factor.
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+pub struct TimeSeriesMomentumConfig {
+    /// Number of trading days to look back (default: 252)
+    pub lookback: usize,
+}
+
+impl Default for TimeSeriesMomentumConfig {
+    fn default() -> Self {
+        Self { lookback: 252 }
+    }
+}
 
 /// Time-series momentum factor - direction of past return scaled by inverse volatility.
 ///
@@ -26,7 +39,9 @@ use polars::prelude::*;
 /// - Risk-adjusted trend following
 /// - Volatility-weighted portfolio construction
 #[derive(Debug, Clone, Default)]
-pub struct TimeSeriesMomentum;
+pub struct TimeSeriesMomentum {
+    config: TimeSeriesMomentumConfig,
+}
 
 impl Factor for TimeSeriesMomentum {
     fn name(&self) -> &str {
@@ -46,7 +61,7 @@ impl Factor for TimeSeriesMomentum {
     }
 
     fn lookback(&self) -> usize {
-        252
+        self.config.lookback
     }
 
     fn frequency(&self) -> DataFrequency {
@@ -121,6 +136,18 @@ impl Factor for TimeSeriesMomentum {
     }
 }
 
+impl ConfigurableFactor for TimeSeriesMomentum {
+    type Config = TimeSeriesMomentumConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -128,7 +155,7 @@ mod tests {
 
     #[test]
     fn test_time_series_momentum_basic() {
-        let factor = TimeSeriesMomentum;
+        let factor = TimeSeriesMomentum::default();
 
         // Create test data with 253 days of prices
         let dates: Vec<String> = (0..253)
@@ -178,7 +205,7 @@ mod tests {
 
     #[test]
     fn test_time_series_momentum_metadata() {
-        let factor = TimeSeriesMomentum;
+        let factor = TimeSeriesMomentum::default();
 
         assert_eq!(factor.name(), "time_series_momentum");
         assert_eq!(factor.category(), FactorCategory::Momentum);

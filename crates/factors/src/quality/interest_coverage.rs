@@ -6,10 +6,14 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+
+/// Configuration for Interest Coverage factor.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct InterestCoverageConfig {}
 
 /// Interest Coverage factor.
 ///
@@ -21,7 +25,9 @@ use polars::prelude::*;
 /// This factor measures how many times a company can cover its interest payments
 /// with its operating earnings. Higher ratios indicate stronger financial health.
 #[derive(Debug, Clone, Default)]
-pub struct InterestCoverage;
+pub struct InterestCoverage {
+    config: InterestCoverageConfig,
+}
 
 impl Factor for InterestCoverage {
     fn name(&self) -> &str {
@@ -63,13 +69,25 @@ impl Factor for InterestCoverage {
     }
 }
 
+impl ConfigurableFactor for InterestCoverage {
+    type Config = InterestCoverageConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_interest_coverage_metadata() {
-        let factor = InterestCoverage;
+        let factor = InterestCoverage::default();
         assert_eq!(factor.name(), "interest_coverage");
         assert_eq!(factor.lookback(), 1);
         assert_eq!(factor.frequency(), DataFrequency::Quarterly);
@@ -86,7 +104,7 @@ mod tests {
         ]
         .unwrap();
 
-        let factor = InterestCoverage;
+        let factor = InterestCoverage::default();
         let result = factor
             .compute_raw(&df.lazy(), NaiveDate::from_ymd_opt(2024, 3, 31).unwrap())
             .unwrap();

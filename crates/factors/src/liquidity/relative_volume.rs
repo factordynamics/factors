@@ -6,10 +6,11 @@
 use crate::{
     Result,
     registry::FactorCategory,
-    traits::{DataFrequency, Factor},
+    traits::{ConfigurableFactor, DataFrequency, Factor},
 };
 use chrono::NaiveDate;
 use polars::prelude::*;
+use serde::{Deserialize, Serialize};
 
 /// Relative volume factor.
 ///
@@ -39,20 +40,50 @@ use polars::prelude::*;
 ///
 /// - Lee, C. M., and M. J. Ready (1991). "Inferring trade direction from intraday data,"
 ///   Journal of Finance.
+///
+/// Configuration for RelativeVolume factor.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RelativeVolumeConfig {
+    /// Number of days to average volume over.
+    pub lookback: usize,
+    /// Minimum number of periods required for valid calculation.
+    pub min_periods: usize,
+}
+
+impl Default for RelativeVolumeConfig {
+    fn default() -> Self {
+        Self {
+            lookback: 20,
+            min_periods: 20,
+        }
+    }
+}
+
+/// Relative volume factor implementation.
 #[derive(Debug, Clone)]
 pub struct RelativeVolume {
-    lookback: usize,
+    config: RelativeVolumeConfig,
 }
 
 impl RelativeVolume {
     /// Creates a new RelativeVolume factor with default 20-day lookback.
     pub const fn new() -> Self {
-        Self { lookback: 20 }
+        Self {
+            config: RelativeVolumeConfig {
+                lookback: 20,
+                min_periods: 20,
+            },
+        }
     }
 
     /// Creates a RelativeVolume factor with a custom lookback period.
     pub const fn with_lookback(lookback: usize) -> Self {
-        Self { lookback }
+        Self {
+            config: RelativeVolumeConfig {
+                lookback,
+                min_periods: lookback,
+            },
+        }
     }
 }
 
@@ -80,7 +111,7 @@ impl Factor for RelativeVolume {
     }
 
     fn lookback(&self) -> usize {
-        self.lookback
+        self.config.lookback
     }
 
     fn frequency(&self) -> DataFrequency {
@@ -99,8 +130,8 @@ impl Factor for RelativeVolume {
             .with_column(
                 col("volume")
                     .rolling_mean(RollingOptionsFixedWindow {
-                        window_size: self.lookback,
-                        min_periods: self.lookback,
+                        window_size: self.config.lookback,
+                        min_periods: self.config.min_periods,
                         ..Default::default()
                     })
                     .over([col("symbol")])
@@ -118,6 +149,18 @@ impl Factor for RelativeVolume {
             .collect()?;
 
         Ok(result)
+    }
+}
+
+impl ConfigurableFactor for RelativeVolume {
+    type Config = RelativeVolumeConfig;
+
+    fn with_config(config: Self::Config) -> Self {
+        Self { config }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
     }
 }
 

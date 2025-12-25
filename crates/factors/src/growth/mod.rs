@@ -9,8 +9,8 @@ pub mod earnings_growth;
 pub mod employee_growth;
 pub mod sales_growth;
 
-pub use asset_growth::AssetGrowth;
-pub use book_equity_growth::BookEquityGrowth;
-pub use earnings_growth::EarningsGrowth;
-pub use employee_growth::EmployeeGrowth;
-pub use sales_growth::SalesGrowth;
+pub use asset_growth::{AssetGrowth, AssetGrowthConfig};
+pub use book_equity_growth::{BookEquityGrowth, BookEquityGrowthConfig};
+pub use earnings_growth::{EarningsGrowth, EarningsGrowthConfig};
+pub use employee_growth::{EmployeeGrowth, EmployeeGrowthConfig};
+pub use sales_growth::{SalesGrowth, SalesGrowthConfig};
