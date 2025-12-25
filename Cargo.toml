@@ -1,5 +1,5 @@
 [workspace.package]
-version = "0.2.0"
+version = "0.2.1"
 edition = "2024"
 rust-version = "1.88"
 license = "MIT"
@@ -65,8 +65,8 @@ serde = { version = "1.0", features = ["derive"] }
 chrono = { version = "0.4", features = ["serde"] }
 criterion = { version = "0.8", features = ["html_reports"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
-factors-bin = { version = "0.2.0", path = "bin" }
+factors-bin = { version = "0.2.1", path = "bin" }
 derive_more = { version = "2", features = ["display", "from", "into", "deref"] }
-factors = { version = "0.2.0", path = "crates/factors", default-features = false }
+factors = { version = "0.2.1", path = "crates/factors", default-features = false }
 toraniko = { version = "0.1.3", default-features = false, features = ["full"] }
 polars = { version = "0.46", default-features = false, features = ["abs", "dtype-date", "dtype-datetime", "lazy", "log", "rank", "rolling_window", "streaming"] }
