@@ -1,22 +1,22 @@
-# fd-factors CLI
+# factors CLI
 
-Command-line interface for the `fd-factors` unified factor library.
+Command-line interface for the `factors` unified factor library.
 
 ## Overview
 
-The `fd-factors` CLI provides easy access to the comprehensive factor library for quantitative finance. It enables factor discovery, introspection, and computation directly from the command line.
+The `factors` CLI provides easy access to the comprehensive factor library for quantitative finance. It enables factor discovery, introspection, and computation directly from the command line.
 
 ## Installation
 
 ```bash
-cargo install fd-factors-bin
+cargo install factors-bin
 ```
 
 Or build from source:
 
 ```bash
 cargo build --release
-./target/release/fd-factors --help
+./target/release/factors --help
 ```
 
 ## Usage
@@ -26,7 +26,7 @@ cargo build --release
 Display all registered factors grouped by category:
 
 ```bash
-fd-factors list
+factors list
 ```
 
 ### Show Factor Information
@@ -34,9 +34,9 @@ fd-factors list
 Get detailed information about a specific factor, including its description, required inputs, and parameters:
 
 ```bash
-fd-factors info short_term_momentum
-fd-factors info book_to_price
-fd-factors info market_beta
+factors info short_term_momentum
+factors info book_to_price
+factors info market_beta
 ```
 
 ### Compute Factors
@@ -44,8 +44,8 @@ fd-factors info market_beta
 Compute a specific factor for a given symbol (placeholder implementation):
 
 ```bash
-fd-factors compute AAPL --factor short_term_momentum
-fd-factors compute MSFT --factor earnings_yield
+factors compute AAPL --factor short_term_momentum
+factors compute MSFT --factor earnings_yield
 ```
 
 ## Available Factors
@@ -64,13 +64,13 @@ The CLI provides access to all factors in the library, organized by category:
 
 ```bash
 # List all factors
-fd-factors list
+factors list
 
 # Get information about ROE
-fd-factors info roe
+factors info roe
 
 # Compute short-term momentum for AAPL
-fd-factors compute AAPL --factor short_term_momentum
+factors compute AAPL --factor short_term_momentum
 ```
 
 ## License

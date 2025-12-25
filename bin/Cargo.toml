@@ -1,5 +1,5 @@
 [package]
-name = "fd-factors-bin"
+name = "factors-bin"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -7,15 +7,15 @@ license.workspace = true
 homepage.workspace = true
 repository.workspace = true
 authors.workspace = true
-description = "CLI for fd-factors unified factor library"
+description = "CLI for factors unified factor library"
 
 [lints]
 workspace = true
 
 [dependencies]
-fd-factors.workspace = true
+factors.workspace = true
 clap.workspace = true
 
 [[bin]]
-name = "fd-factors"
+name = "factors"
 path = "src/main.rs"

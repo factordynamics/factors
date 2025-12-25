@@ -79,12 +79,12 @@ watch-check:
 
 # List all available factors
 factors:
-    cargo run --package fd-factors-bin -- list
+    cargo run --package factors-bin -- list
 
 # Compute factor for a symbol
 compute symbol factor:
-    cargo run --package fd-factors-bin -- compute {{symbol}} --factor {{factor}}
+    cargo run --package factors-bin -- compute {{symbol}} --factor {{factor}}
 
 # Show factor information
 info factor:
-    cargo run --package fd-factors-bin -- info {{factor}}
+    cargo run --package factors-bin -- info {{factor}}

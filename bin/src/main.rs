@@ -1,14 +1,14 @@
-//! CLI for fd-factors unified factor library.
+//! CLI for factors unified factor library.
 //!
 //! This binary provides a command-line interface for discovering, introspecting,
-//! and computing factors from the fd-factors library.
+//! and computing factors from the factors library.
 
 use clap::{Parser, Subcommand};
-use fd_factors::{FactorCategory, FactorRegistry};
+use factors::{FactorCategory, FactorRegistry};
 use std::collections::HashMap;
 
 #[derive(Parser)]
-#[command(name = "fd-factors")]
+#[command(name = "factors")]
 #[command(about = "Unified factor library for quantitative finance", long_about = None)]
 #[command(version)]
 struct Cli {
@@ -158,7 +158,7 @@ const fn frequency_description(freq: &DataFrequency) -> &'static str {
     }
 }
 
-use fd_factors::DataFrequency;
+use factors::DataFrequency;
 
 #[cfg(test)]
 mod tests {

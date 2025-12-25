@@ -1,4 +1,4 @@
-# fd-factors
+# factors
 
 Unified factor library for quantitative finance, serving both alpha generation (tarifa) and risk modeling (perth) use cases.
 
@@ -15,7 +15,7 @@ Unified factor library for quantitative finance, serving both alpha generation (
 ## Architecture
 
 ```text
-fd-factors/
+factors/
 ├── traits.rs           # Core Factor trait definition
 ├── registry.rs         # Factor discovery and introspection
 ├── standardize.rs      # Cross-sectional z-scoring utilities
@@ -31,7 +31,7 @@ fd-factors/
 ## Usage
 
 ```rust,ignore
-use fd_factors::{Factor, FactorRegistry, FactorCategory};
+use factors::{Factor, FactorRegistry, FactorCategory};
 
 // Create registry with all default factors
 let registry = FactorRegistry::with_defaults();
