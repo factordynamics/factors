@@ -389,7 +389,7 @@ checksum = "ca81e6b4777c89fd810c25a4be2b1bd93ea034fbe58e6a75216a34c6b82c539b"
 
 [[package]]
 name = "factors"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "approx",
  "chrono",
@@ -403,7 +403,7 @@ dependencies = [
 
 [[package]]
 name = "factors-bin"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "clap",
  "factors",

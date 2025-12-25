@@ -1,5 +1,5 @@
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.88"
 license = "MIT"
@@ -46,8 +46,8 @@ codegen-units = 16
 
 [workspace.dependencies]
 # Internal crates
-factors = { version = "0.1.0", path = "crates/factors", default-features = false }
-factors-bin = { version = "0.1.0", path = "bin" }
+factors = { version = "0.2.0", path = "crates/factors", default-features = false }
+factors-bin = { version = "0.2.0", path = "bin" }
 
 # Toraniko dependencies from crates.io
 toraniko = { version = "0.1.3", default-features = false, features = ["full"] }
