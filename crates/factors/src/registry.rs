@@ -5,12 +5,13 @@
 
 use crate::{Factor, Result, traits::DataFrequency};
 use chrono::NaiveDate;
+use derive_more::Display;
 use polars::prelude::*;
 use std::collections::HashMap;
 use std::sync::Arc;
 
 /// Factor category for grouping related factors.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FactorCategory {
     /// Momentum - trend persistence factors
     Momentum,
@@ -28,21 +29,6 @@ pub enum FactorCategory {
     Liquidity,
     /// Sentiment - analyst and market sentiment factors
     Sentiment,
-}
-
-impl std::fmt::Display for FactorCategory {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Momentum => write!(f, "Momentum"),
-            Self::Value => write!(f, "Value"),
-            Self::Quality => write!(f, "Quality"),
-            Self::Size => write!(f, "Size"),
-            Self::Volatility => write!(f, "Volatility"),
-            Self::Growth => write!(f, "Growth"),
-            Self::Liquidity => write!(f, "Liquidity"),
-            Self::Sentiment => write!(f, "Sentiment"),
-        }
-    }
 }
 
 /// Metadata for factor introspection.

@@ -45,44 +45,28 @@ panic = "unwind"
 codegen-units = 16
 
 [workspace.dependencies]
-# Internal crates
-factors = { version = "0.2.0", path = "crates/factors", default-features = false }
-factors-bin = { version = "0.2.0", path = "bin" }
-
-# Toraniko dependencies from crates.io
-toraniko = { version = "0.1.3", default-features = false, features = ["full"] }
-toraniko-primitives = "0.1.3"
-toraniko-traits = "0.1.3"
-toraniko-math = "0.1.3"
-toraniko-styles = "0.1.3"
-toraniko-model = "0.1.3"
-toraniko-utils = "0.1.3"
-
-# DataFrames
-polars = { version = "0.46", default-features = false, features = ["lazy", "dtype-date", "dtype-datetime", "streaming", "rank", "rolling_window", "abs", "log"] }
-
-# Linear algebra
-ndarray = { version = "0.16", features = ["rayon"] }
-
-# Error handling
-thiserror = "2.0"
-
-# Utilities
-derive_more = { version = "2", features = ["display", "from", "into"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-chrono = { version = "0.4", features = ["serde"] }
-
-# Testing
-rstest = "0.24"
-approx = "0.5"
-criterion = { version = "0.5", features = ["html_reports"] }
-rand = "0.8"
-
-# Async runtime and HTTP
-tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+# Utilities - ordered by line length (waterfall style)
+rand = "0.9"
 futures = "0.3"
-
-# CLI
+approx = "0.5.1"
+rstest = "0.26.1"
+thiserror = "2.0"
+serde_json = "1.0"
+indicatif = "0.18"
+toraniko-math = "0.1.3"
+toraniko-utils = "0.1.3"
+toraniko-model = "0.1.3"
+toraniko-styles = "0.1.3"
+toraniko-traits = "0.1.3"
+toraniko-primitives = "0.1.3"
 clap = { version = "4", features = ["derive"] }
-indicatif = "0.17"
+ndarray = { version = "0.17", features = ["rayon"] }
+serde = { version = "1.0", features = ["derive"] }
+chrono = { version = "0.4", features = ["serde"] }
+criterion = { version = "0.8", features = ["html_reports"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+factors-bin = { version = "0.2.0", path = "bin" }
+derive_more = { version = "2", features = ["display", "from", "into", "deref"] }
+factors = { version = "0.2.0", path = "crates/factors", default-features = false }
+toraniko = { version = "0.1.3", default-features = false, features = ["full"] }
+polars = { version = "0.46", default-features = false, features = ["abs", "dtype-date", "dtype-datetime", "lazy", "log", "rank", "rolling_window", "streaming"] }

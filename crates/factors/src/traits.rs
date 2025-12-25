@@ -5,10 +5,11 @@
 
 use crate::{FactorCategory, Result};
 use chrono::NaiveDate;
+use derive_more::Display;
 use polars::prelude::*;
 
 /// Data frequency for factor computation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DataFrequency {
     /// Daily frequency - price-based factors
     Daily,

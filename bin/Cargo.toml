@@ -13,8 +13,8 @@ description = "CLI for factors unified factor library"
 workspace = true
 
 [dependencies]
-factors.workspace = true
 clap.workspace = true
+factors.workspace = true
 
 [[bin]]
 name = "factors"
